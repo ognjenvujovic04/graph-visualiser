@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "graph-platform"
+version = "0.1"
+description = "Graph platform (plugin loader + orchestration)."
+dependencies = [
+    "graph-api==0.1"
+]
+
+[tool.setuptools]
+provides = ["graph"]
