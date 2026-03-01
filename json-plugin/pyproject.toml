@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "graph-json-plugin"
+version = "0.1"
+description = "JSON datasource plugin (arbitrary JSON -> Graph, supports @id/@ref cycles)."
+dependencies = [
+  "graph-api==0.1"
+]
+
+[project.entry-points."graph.datasource"]
+json = "graph.json_plugin.datasource:JsonDataSource"
+
+[tool.setuptools]
+provides = ["graph"]

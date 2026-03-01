@@ -1,0 +1,105 @@
+{
+  "@id": "root",
+  "name": "Root",
+  "children": [
+    {
+      "@id": "n1",
+      "name": "Level1-1",
+      "children": [
+        {
+          "@id": "n1_1",
+          "name": "Level2-1",
+          "children": [
+            { "@id": "n1_1_1", "name": "Leaf 1" },
+            { "@id": "n1_1_2", "name": "Leaf 2" },
+            { "@id": "n1_1_3", "name": "Leaf 3" }
+          ]
+        },
+        {
+          "@id": "n1_2",
+          "name": "Level2-2",
+          "children": [
+            { "@id": "n1_2_1", "name": "Leaf 4" },
+            { "@id": "n1_2_2", "name": "Leaf 5" },
+            { "@id": "n1_2_3", "name": "Leaf 6" }
+          ]
+        },
+        {
+          "@id": "n1_3",
+          "name": "Level2-3",
+          "children": [
+            { "@id": "n1_3_1", "name": "Leaf 7" },
+            { "@id": "n1_3_2", "name": "Leaf 8" },
+            { "@id": "n1_3_3", "name": "Leaf 9" }
+          ]
+        }
+      ]
+    },
+    {
+      "@id": "n2",
+      "name": "Level1-2",
+      "children": [
+        {
+          "@id": "n2_1",
+          "name": "Level2-4",
+          "children": [
+            { "@id": "n2_1_1", "name": "Leaf 10" },
+            { "@id": "n2_1_2", "name": "Leaf 11" },
+            { "@id": "n2_1_3", "name": "Leaf 12" }
+          ]
+        },
+        {
+          "@id": "n2_2",
+          "name": "Level2-5",
+          "children": [
+            { "@id": "n2_2_1", "name": "Leaf 13" },
+            { "@id": "n2_2_2", "name": "Leaf 14" },
+            { "@id": "n2_2_3", "name": "Leaf 15" }
+          ]
+        },
+        {
+          "@id": "n2_3",
+          "name": "Level2-6",
+          "children": [
+            { "@id": "n2_3_1", "name": "Leaf 16" },
+            { "@id": "n2_3_2", "name": "Leaf 17" },
+            { "@id": "n2_3_3", "name": "Leaf 18" }
+          ]
+        }
+      ]
+    },
+    {
+      "@id": "n3",
+      "name": "Level1-3",
+      "children": [
+        {
+          "@id": "n3_1",
+          "name": "Level2-7",
+          "children": [
+            { "@id": "n3_1_1", "name": "Leaf 19" },
+            { "@id": "n3_1_2", "name": "Leaf 20" },
+            { "@id": "n3_1_3", "name": "Leaf 21" }
+          ]
+        },
+        {
+          "@id": "n3_2",
+          "name": "Level2-8",
+          "children": [
+            { "@id": "n3_2_1", "name": "Leaf 22" },
+            { "@id": "n3_2_2", "name": "Leaf 23" },
+            { "@id": "n3_2_3", "name": "Leaf 24" }
+          ]
+        },
+        {
+          "@id": "n3_3",
+          "name": "Level2-9",
+          "children": [
+            { "@id": "n3_3_1", "name": "Leaf 25" },
+            { "@id": "n3_3_2", "name": "Leaf 26" },
+            { "@id": "n3_3_3", "name": "Leaf 27" }
+          ]
+        }
+      ]
+    }
+  ]
+}
