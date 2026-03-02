@@ -21,6 +21,7 @@ echo Installing editable packages...
 pip install -e .\api
 pip install -e .\platform
 pip install -e .\json-plugin
+pip install -e .\csv-plugin
 
 echo.
 echo ================================

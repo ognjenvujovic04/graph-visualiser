@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "graph-csv-plugin"
+version = "0.1"
+description = "CSV datasource plugin (CSV -> Graph)."
+dependencies = [
+  "graph-api==0.1"
+]
+
+[project.entry-points."graph.datasource"]
+csv = "graph.csv_plugin.datasource:CSVDataSource"
