@@ -2,6 +2,7 @@ import math
 from typing import Dict, Tuple
 from graph.api.model.graph import Graph
 from graph.api.model.node import Node
+import random
 
 
 class SvgRenderer:
@@ -105,53 +106,49 @@ class SvgRenderer:
         width: int,
         height: int,
         node_radius: int,
-        iterations: int = 50
+        iterations: int = 100
     ) -> Dict[str, Tuple[float, float]]:
         """
         Simple force-directed layout algorithm.
         Uses repulsive forces between nodes and attractive forces along edges.
         """
-        positions: Dict[str, Tuple[float, float]] = {}
+        positions = {}
         nodes = graph.nodes
 
         if len(nodes) == 0:
             return positions
 
         # Initialize positions randomly
-        import random
         for node in nodes:
-            x = random.uniform(node_radius, width - node_radius)
-            y = random.uniform(node_radius, height - node_radius)
-            positions[node.id] = (x, y)
+            positions[node.id] = (
+                random.uniform(node_radius, width - node_radius),
+                random.uniform(node_radius, height - node_radius),
+            )
 
-        # Force constants
-        repulsion_strength = 5000
-        attraction_strength = 0.1
-        damping = 0.99
-
-        # Velocity for each node
-        velocities: Dict[str, Tuple[float, float]] = {node.id: (0, 0) for node in nodes}
+        area = width * height
+        k = math.sqrt(area / len(nodes))
+        temperature = width / 10
 
         # Iteration loop
         for _ in range(iterations):
             # Reset forces
-            forces: Dict[str, Tuple[float, float]] = {node.id: (0, 0) for node in nodes}
+            forces = {node.id: (0.0, 0.0) for node in nodes}
 
-            # Apply repulsive forces between all node pairs
+            # --- Repulsion ---
             for i, node1 in enumerate(nodes):
-                for node2 in nodes[i + 1 :]:
+                for node2 in nodes[i + 1:]:
                     x1, y1 = positions[node1.id]
                     x2, y2 = positions[node2.id]
+
                     dx = x2 - x1
                     dy = y2 - y1
-                    dist = math.sqrt(dx * dx + dy * dy) + 0.01  # Avoid division by zero
+                    dist = math.sqrt(dx * dx + dy * dy) + 0.01
 
-                    # Repulsive force
-                    force = repulsion_strength / (dist * dist)
-                    fx = (force * dx) / dist
-                    fy = (force * dy) / dist
+                    force = (k * k) / dist
 
-                    # Apply to both nodes (opposite directions)
+                    fx = force * dx / dist
+                    fy = force * dy / dist
+
                     forces[node1.id] = (
                         forces[node1.id][0] - fx,
                         forces[node1.id][1] - fy,
@@ -161,18 +158,19 @@ class SvgRenderer:
                         forces[node2.id][1] + fy,
                     )
 
-            # Apply attractive forces along edges
+            # --- Attraction ---
             for edge in graph.edges:
                 x1, y1 = positions[edge.source.id]
                 x2, y2 = positions[edge.target.id]
+
                 dx = x2 - x1
                 dy = y2 - y1
                 dist = math.sqrt(dx * dx + dy * dy) + 0.01
 
-                # Hooke's law: F = k * d
-                force = attraction_strength * dist
-                fx = (force * dx) / dist
-                fy = (force * dy) / dist
+                force = (dist * dist) / k
+
+                fx = force * dx / dist
+                fy = force * dy / dist
 
                 forces[edge.source.id] = (
                     forces[edge.source.id][0] + fx,
@@ -183,25 +181,26 @@ class SvgRenderer:
                     forces[edge.target.id][1] - fy,
                 )
 
-            # Update velocities and positions
+            # --- Move nodes ---
             for node in nodes:
                 fx, fy = forces[node.id]
-                vx, vy = velocities[node.id]
-
-                # Update velocity with damping
-                vx = (vx + fx) * damping
-                vy = (vy + fy) * damping
-                velocities[node.id] = (vx, vy)
-
-                # Update position
                 x, y = positions[node.id]
-                x += vx
-                y += vy
 
-                # Keep nodes within bounds
-                x = max(node_radius, min(width - node_radius, x))
-                y = max(node_radius, min(height - node_radius, y))
+                # limit movement by temperature
+                dx = max(-temperature, min(temperature, fx))
+                dy = max(-temperature, min(temperature, fy))
+
+                x += dx
+                y += dy
+
+                # keep inside bounds
+                x = min(width - node_radius, max(node_radius, x))
+                y = min(height - node_radius, max(node_radius, y))
+
                 positions[node.id] = (x, y)
+
+            # cool down
+            temperature *= 0.95
 
         return positions
 
