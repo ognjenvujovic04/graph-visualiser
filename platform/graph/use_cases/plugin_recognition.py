@@ -2,7 +2,7 @@ from importlib.metadata import entry_points
 from typing import Dict, List
 
 from graph.api.services.plugin import DataSourcePlugin, VisualizerPlugin
-from .const import DATASOURCE_GROUP, VISUALIZER_GROUP
+from .consts import DATASOURCE_GROUP, VISUALIZER_GROUP
 
 
 class PluginRegistry(object):
