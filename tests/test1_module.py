@@ -10,8 +10,8 @@ def main():
     data=input("Data source: 1. JSON or 2. CSV: ")
     if data == "1":
         ds = JsonDataSource()
-        g = ds.load(path="sample.json", direct=directed)  # --> aciklican, neusmeren
-        # g = ds.load(path="big_250.json",direct=directed) #--> primer ciklicnog i umerenog
+        #g = ds.load(path="sample.json", direct=directed)  # --> aciklican, neusmeren
+        g = ds.load(path="big_250.json",direct=directed) #--> primer ciklicnog i umerenog
     else:
         ds = CSVDataSource()
        # g = ds.load(path="sample.csv", direct=directed)
