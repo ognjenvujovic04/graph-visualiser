@@ -6,17 +6,19 @@ from graph.api.model.node import Node
 from graph.api.model.attributes import AttributeType, AttributeValue
 
 from .config import JsonConfig
+from graph.api.builder.builder import Builder
+from graph.api.builder.graph_builder import GraphBuilder
 
 
 class JsonGraphParser(object):
 
+    def __init__(self, builder: Builder = None):
+        self.__builder = builder or GraphBuilder()
+
     def parse(self, data: Any, cfg: JsonConfig, dir:str) -> Graph:
         # JSON moze biti ciklican, default dozvoli cikluse
-        graph = Graph(directed=True, cyclic=True)
-        if dir=="y":
-            graph.directed=True
-        else:
-            graph.directed=False
+        directed = dir == "y"
+        graph = self.__builder.build_graph(directed=directed, cyclic=True)
         # PASS 1: index svih @id (da prepoznamo string reference)
         id_index: Dict[str, str] = {}
         self.__index_ids(data, cfg, id_index)
@@ -60,12 +62,13 @@ class JsonGraphParser(object):
             # get/create node
             node = graph.get_node(node_id)
             if node is None:
-                node = Node(node_id)
-                graph.add_node(node)
+                node = self.__builder.build_node(obj, cfg.id_key)
+            else:
+                self.__builder.update_node(node, obj, cfg.id_key, cfg.ref_key)
 
             # link parent -> this node (ako postoji roditelj)
             if parent_node is not None and edge_label is not None:
-                graph.add_edge(parent_node, node, edge_label)
+                self.__builder.build_edge(parent_node, node, edge_label)
 
             # obradi polja
             for k, v in obj.items():
@@ -79,10 +82,9 @@ class JsonGraphParser(object):
 
                     target_node = graph.get_node(target_id)
                     if target_node is None:
-                        target_node = Node(target_id)
-                        graph.add_node(target_node)
+                        target_node = self.__builder.build_node({cfg.id_key: target_id}, cfg.id_key)
 
-                    graph.add_edge(node, target_node, k)
+                    self.__builder.build_edge(node,target_node,k)
                     continue
 
                 # string referenca: "X" gde X postoji kao @id
@@ -91,18 +93,14 @@ class JsonGraphParser(object):
 
                     target_node = graph.get_node(target_id)
                     if target_node is None:
-                        target_node = Node(target_id)
-                        graph.add_node(target_node)
+                        target_node =self.__builder.build_node({cfg.id_key: target_id}, cfg.id_key)
 
-                    graph.add_edge(node, target_node, k)
+                    self.__builder.build_edge(node, target_node, k)
                     continue
 
                 # child strukture
                 if isinstance(v, (dict, list)):
                     self.__build(v, cfg, graph, id_index, parent_node=node, edge_label=k)
-                else:
-                    # primitive -> atribut
-                    node.add_attribute(k, self.__to_attr_value(v))
 
             return node
 
@@ -125,35 +123,3 @@ class JsonGraphParser(object):
             return obj[cfg.id_key]
         # fallback anon id (prva verzija)
         return f"anon_{id(obj)}"
-
-    def __to_attr_value(self, v: Any) -> AttributeValue:
-        # bool/null -> string
-        if v is None or isinstance(v, bool):
-            return AttributeValue(AttributeType.STR, str(v))
-
-        if isinstance(v, int):
-            return AttributeValue(AttributeType.INT, v)
-
-        if isinstance(v, float):
-            return AttributeValue(AttributeType.FLOAT, v)
-
-        if isinstance(v, str):
-            s = v.strip()
-
-            # date: YYYY-MM-DD
-            if len(s) == 10 and s[4] == "-" and s[7] == "-":
-                try:
-                    d = datetime.strptime(s, "%Y-%m-%d")
-                    return AttributeValue(AttributeType.DATE, d)
-                except ValueError:
-                    pass
-
-            # int/float string
-            try:
-                if "." in s:
-                    return AttributeValue(AttributeType.FLOAT, float(s))
-                return AttributeValue(AttributeType.INT, int(s))
-            except ValueError:
-                return AttributeValue(AttributeType.STR, v)
-
-        return AttributeValue(AttributeType.STR, str(v))
