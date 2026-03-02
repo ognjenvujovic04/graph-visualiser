@@ -21,6 +21,7 @@ echo Installing editable packages...
 pip install -e .\api
 pip install -e .\platform
 pip install -e .\json-plugin
+pip install -e .\simple-visualizer
 
 echo.
 echo ================================
@@ -31,7 +32,13 @@ echo.
 echo ================================
 echo Running test1_module...
 echo ================================
-python test1_module.py
+python -m tests.test1_module
+
+echo.
+echo ================================
+echo Running Simple Visualizer tests...
+echo ================================
+python -m tests.test_simple_visualizer
 
 echo.
 echo ================================
