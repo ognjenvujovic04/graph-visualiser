@@ -1,7 +1,11 @@
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, TYPE_CHECKING
 from .node import Node
 from .edge import Edge
 from collections import deque
+
+if TYPE_CHECKING:
+    from .search import SearchOperation
+    from .filter import FilterOperation
 
 class Graph:
     def __init__(self, directed: bool = True, cyclic: bool = True):
@@ -154,6 +158,17 @@ class Graph:
 
         return False
 
+    def search(self, search_text: str) -> 'Graph':
+        from .search import SearchOperation
+        
+        search_op = SearchOperation(search_text)
+        return search_op.execute(self)
+
+    def filter(self, filter_expr) -> 'Graph':
+        from .filter import FilterOperation
+        
+        filter_op = FilterOperation(filter_expr)
+        return filter_op.execute(self)
 
     def __str__(self) -> str:
         d = "directed" if self.__directed else "undirected"
