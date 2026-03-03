@@ -37,6 +37,12 @@ python -m tests.test1_module
 
 echo.
 echo ================================
+echo Running Search & Filter tests...
+echo ================================
+python -m tests.test_search_filter
+
+echo.
+echo ================================
 echo Running Simple Visualizer tests...
 echo ================================
 python -m tests.test_simple_visualizer
