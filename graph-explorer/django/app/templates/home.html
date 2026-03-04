@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}Home | Graph Explorer{% endblock %}
+
+{% block content %}
+<section class="card">
+    <p class="home-kicker">Graph Workspace</p>
+    <h1 class="page-title">Graph dashboard layout</h1>
+    <p class="page-subtitle">
+        Some text.
+    </p>
+
+    <div class="mode-switch" role="group" aria-label="View mode">
+        <button type="button" class="mode-button is-active">Simple View</button>
+        <button type="button" class="mode-button">Block View</button>
+    </div>
+</section>
+
+<section class="card card-gap">
+    <h2 class="section-title">Graph Views</h2>
+
+    <div class="global-filter-bar">
+        <p class="filter-label">Global Filter</p>
+        <div class="filter-row" aria-label="Global filter expression">
+            <div class="filter-field">
+                <label class="filter-label" for="filter-field">Field</label>
+                <input id="filter-field" class="filter-input" type="text" value="age" placeholder="e.g. age">
+            </div>
+
+            <div class="filter-field filter-field-operator">
+                <label class="filter-label" for="filter-operator">Operator</label>
+                <select id="filter-operator" class="filter-input">
+                    <option value=">">&gt;</option>
+                    <option value=">=">&gt;=</option>
+                    <option value="=">=</option>
+                    <option value="<">&lt;</option>
+                    <option value="<=">&lt;=</option>
+                    <option value="!=">!=</option>
+                </select>
+            </div>
+
+            <div class="filter-field">
+                <label class="filter-label" for="filter-value">Value</label>
+                <input id="filter-value" class="filter-input" type="text" placeholder="e.g. 20">
+            </div>
+        </div>
+    </div>
+
+    <div class="workspace-grid">
+        <div class="side-views">
+            <article class="graph-panel graph-panel-small" id="tree-view" aria-label="Tree graph view">
+                <header class="panel-header">
+                    <h3>Tree View</h3>
+                    <span class="panel-caption">Hierarchy</span>
+                </header>
+
+                <div class="view-canvas" aria-label="Tree view D3 container">
+                    Tree D3 placeholder
+                </div>
+            </article>
+
+            <article class="graph-panel graph-panel-small" id="bird-view" aria-label="Bird eye graph view">
+                <header class="panel-header">
+                    <h3>Bird View</h3>
+                    <span class="panel-caption">Overview</span>
+                </header>
+
+                <div class="view-canvas" aria-label="Bird view D3 container">
+                    Bird D3 placeholder
+                </div>
+            </article>
+        </div>
+
+        <article class="graph-panel graph-panel-main" id="main-view" aria-label="Main graph view">
+            <header class="panel-header">
+                <h3>Main View</h3>
+                <span class="panel-caption">Detailed</span>
+            </header>
+
+            <div class="view-canvas view-canvas-main" aria-label="Main view D3 container">
+                Main D3 placeholder
+            </div>
+        </article>
+    </div>
+</section>
+{% endblock %}
