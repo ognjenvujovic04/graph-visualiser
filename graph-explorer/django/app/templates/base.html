@@ -1,0 +1,35 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>{% block title %}Graph Explorer{% endblock %}</title>
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;700;800&family=Manrope:wght@400;500;600&display=swap" rel="stylesheet">
+	<link rel="stylesheet" href="{% static 'styles.css' %}">
+	{% block extra_head %}{% endblock %}
+</head>
+<body>
+	<div class="site-shell">
+		<nav class="navbar" aria-label="Main navigation">
+			<div class="nav-inner">
+				<a class="brand" href="{% url 'home' %}">Graph Explorer</a>
+				<div class="nav-links">
+					<a class="nav-link {% if active_page == 'home' %}active{% endif %}" href="{% url 'home' %}">Workspace</a>
+					<a class="nav-link" href="#main-view">Main View</a>
+					<a class="nav-link" href="#tree-view">Tree View</a>
+					<a class="nav-link" href="#bird-view">Bird View</a>
+				</div>
+				<div class="selection-pill" id="selection-status" aria-live="polite">Focused Node: pending D3</div>
+			</div>
+		</nav>
+
+		<main>
+			{% block content %}{% endblock %}
+		</main>
+	</div>
+	{% block extra_scripts %}{% endblock %}
+</body>
+</html>
