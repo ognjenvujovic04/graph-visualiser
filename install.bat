@@ -23,6 +23,7 @@ pip install -e .\platform
 pip install -e .\json-plugin
 pip install -e .\simple-visualizer
 pip install -e .\csv-plugin
+pip install -e .\xml-plugin
 
 echo.
 echo ================================
