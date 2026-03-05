@@ -22,6 +22,7 @@ pip install -e .\api
 pip install -e .\platform
 pip install -e .\json-plugin
 pip install -e .\simple-visualizer
+pip install -e .\block-visualizer
 pip install -e .\csv-plugin
 pip install django
 
@@ -47,6 +48,12 @@ echo ================================
 echo Running Simple Visualizer tests...
 echo ================================
 python -m tests.test_simple_visualizer
+
+echo.
+echo ================================
+echo Running Block Visualizer tests...
+echo ================================
+python -m tests.test_block_visualizer
 
 echo.
 echo ================================
