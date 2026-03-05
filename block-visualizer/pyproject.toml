@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "graph-block-visualizer"
+version = "0.1"
+dependencies = ["graph-api==0.1"]
+
+[project.entry-points."graph.visualizer"]
+block = "graph.block_plugin.visualizer:BlockVisualizer"
+
+[tool.setuptools]
+provides = ["graph"]
