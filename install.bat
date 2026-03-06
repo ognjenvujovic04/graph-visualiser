@@ -57,6 +57,12 @@ python -m tests.test_block_visualizer
 
 echo.
 echo ================================
+echo Running Workspace Manager tests...
+echo ================================
+python -m tests.test_workspace_manager
+
+echo.
+echo ================================
 echo Running Facade and CLI tests...
 echo ================================
 python -m tests.test_facade_cli
