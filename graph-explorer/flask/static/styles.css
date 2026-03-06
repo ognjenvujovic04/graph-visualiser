@@ -97,16 +97,60 @@ body {
 main {
     grid-row: 2;
     display: grid;
-    grid-template-columns: 260px 1fr;
+    grid-template-columns: 240px minmax(0, 1fr) 280px;
     grid-template-rows: 1fr;
     overflow: hidden;
     height: calc(100vh - 30px);
 }
 
+/* ── Left panel (tree + bird) ───────────────────────────────────── */
+.left-panel {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: grid;
+    grid-template-rows: 1fr 1fr;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.mini-pane {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.mini-pane + .mini-pane {
+    border-top: 1px solid var(--border);
+}
+
+.mini-header {
+    height: 28px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    font-size: 12px;
+    color: var(--ink);
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.mini-body {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    background: var(--surface);
+    color: var(--muted);
+    padding: 10px;
+    font-size: 12px;
+    font-family: "Consolas", monospace;
+}
+
 /* ── Sidebar (left panel) ────────────────────────────────────────── */
 .sidebar {
     background: var(--surface);
-    border-right: 1px solid var(--border);
+    border-left: 1px solid var(--border);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -244,9 +288,80 @@ main {
     background: var(--surface);
     font-family: "Consolas", monospace;
     font-size: 12px;
+    padding: 8px 6px;
 }
 
 #tree-canvas svg { display: block; }
+
+.tree-empty {
+    color: var(--muted);
+    font-style: italic;
+    padding: 4px 6px;
+}
+
+.tree-root-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.tree-node {
+    display: flex;
+    flex-direction: column;
+    min-width: max-content;
+}
+
+.tree-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 20px;
+}
+
+.tree-toggle {
+    width: 16px;
+    height: 16px;
+    border: 1px solid var(--border);
+    background: var(--surface-3);
+    color: var(--ink);
+    border-radius: 2px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    font-size: 11px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.tree-toggle:hover {
+    background: #4a4a4a;
+}
+
+.tree-toggle.is-leaf {
+    background: transparent;
+    border-color: transparent;
+    color: var(--muted);
+    cursor: default;
+}
+
+.tree-label {
+    color: var(--ink);
+    white-space: nowrap;
+}
+
+.tree-children {
+    margin-left: 11px;
+    padding-left: 10px;
+    border-left: 1px dashed #4f4f4f;
+    display: none;
+}
+
+.tree-cycle {
+    color: var(--orange);
+    padding: 2px 0 2px 20px;
+    font-size: 11px;
+}
 
 /* ── Right panel ─────────────────────────────────────────────────── */
 .right-panel {
@@ -258,7 +373,7 @@ main {
 /* ── Graph area ──────────────────────────────────────────────────── */
 .graph-area {
     display: grid;
-    grid-template-columns: 1fr 220px;
+    grid-template-columns: minmax(0, 1fr);
     overflow: hidden;
     border-bottom: 1px solid var(--border);
 }
@@ -291,31 +406,40 @@ main {
     top: 28px; left: 0; right: 0; bottom: 0;
 }
 
-/* ── Bird view ───────────────────────────────────────────────────── */
-.bird-wrap {
-    background: var(--surface);
-    border-left: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
+@media (max-width: 1100px) {
+    main {
+        grid-template-columns: 220px minmax(0, 1fr);
+        grid-template-rows: 1fr auto;
+    }
+
+    .sidebar {
+        grid-column: 1 / span 2;
+        grid-row: 2;
+        border-left: none;
+        border-top: 1px solid var(--border);
+    }
 }
 
-.bird-header {
-    height: 28px;
-    background: var(--surface-2);
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    padding: 0 10px;
-    font-size: 12px;
-    color: var(--ink);
-    font-weight: 600;
-    flex-shrink: 0;
-}
+@media (max-width: 760px) {
+    main {
+        grid-template-columns: 1fr;
+        grid-template-rows: 220px minmax(0, 1fr) auto;
+    }
 
-#bird-canvas {
-    flex: 1;
-    overflow: hidden;
+    .left-panel {
+        grid-row: 1;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .right-panel {
+        grid-row: 2;
+    }
+
+    .sidebar {
+        grid-column: 1;
+        grid-row: 3;
+    }
 }
 
 /* ── Terminal ────────────────────────────────────────────────────── */

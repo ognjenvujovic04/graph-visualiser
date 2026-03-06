@@ -5,46 +5,19 @@
 {% block content %}
 <div style="display:contents">
 
-    {# ── Sidebar ──────────────────────────────────────────────────────── #}
-    <aside class="sidebar">
-
-        {# Load panel #}
-        <div class="sidebar-section">
-            <div class="sidebar-header">Explorer</div>
-            <div class="load-panel">
-                <div class="load-field">
-                    <label class="load-label">Data Source</label>
-                    <select id="plugin-select" class="vsc-select">
-                        {% for ds in datasources %}
-                        <option value="{{ ds.id }}">{{ ds.name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="load-field">
-                    <label class="load-label">File Path</label>
-                    <input id="file-path" class="vsc-input" type="text" value="big_250.json"
-                        placeholder="e.g. big_250.json">
-                </div>
-                <div class="load-field">
-                    <label class="load-label">Directed</label>
-                    <select id="directed-select" class="vsc-select">
-                        <option value="y">Yes</option>
-                        <option value="n">No</option>
-                    </select>
-                </div>
-                <button class="vsc-btn" onclick="loadGraph()">▶ Load Graph</button>
-                <p id="load-status" class="load-status"></p>
-            </div>
-
-            <div class="view-tabs">
-                <button class="view-tab is-active" onclick="setVisualizer('simple', this)">Simple</button>
-                <button class="view-tab" onclick="setVisualizer('block',  this)">Block</button>
-            </div>
-        </div>
-
+    {# ── Left panel (tree + bird placeholders) ───────────────────────── #}
+    <aside class="left-panel">
+        <section class="mini-pane">
+            <div class="mini-header">Tree View</div>
+            <div class="mini-body" id="tree-canvas"></div>
+        </section>
+        <section class="mini-pane">
+            <div class="mini-header">Bird View</div>
+            <div class="mini-body" id="bird-canvas">Bird view placeholder</div>
+        </section>
     </aside>
 
-    {# ── Right panel ──────────────────────────────────────────────────── #}
+    {# ── Center panel ─────────────────────────────────────────────────── #}
     <div class="right-panel">
 
         {# Graph area #}
@@ -57,12 +30,6 @@
                     <span class="panel-caption" id="graph-stats">No graph loaded</span>
                 </div>
                 <div id="main-canvas"></div>
-            </div>
-
-            {# Bird View — placeholder for teammate #}
-            <div class="bird-wrap">
-                <div class="bird-header">Bird View</div>
-                <div id="bird-canvas"></div>
             </div>
 
         </div>
@@ -82,14 +49,54 @@
         </div>
 
     </div>
+
+    {# ── Sidebar (data selection moved right) ─────────────────────────── #}
+    <aside class="sidebar">
+
+        {# Load panel #}
+        <div class="sidebar-section">
+            <div class="sidebar-header">Explorer</div>
+            <div class="load-panel">
+                <div class="load-field">
+                    <label class="load-label">Data Source</label>
+                    <select id="plugin-select" class="vsc-select">
+                        {% for ds in datasources %}
+                        <option value="{{ ds.id }}">{{ ds.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="load-field">
+                    <label class="load-label">File Path</label>
+                    <input id="file-path" class="vsc-input" type="text" value="data/sample.csv">
+                </div>
+                <div class="load-field">
+                    <label class="load-label">Directed</label>
+                    <select id="directed-select" class="vsc-select">
+                        <option value="y">Yes</option>
+                        <option value="n">No</option>
+                    </select>
+                </div>
+                <button class="vsc-btn" onclick="loadGraph()">▶ Load Graph</button>
+                <p id="load-status" class="load-status"></p>
+            </div>
+
+            <div class="view-tabs">
+                <button class="view-tab is-active" onclick="setVisualizer('simple', this)">Simple</button>
+                <button class="view-tab" onclick="setVisualizer('block',  this)">Block</button>
+            </div>
+        </div>
+
+    </aside>
 </div>
 {% endblock %}
 
 {% block extra_scripts %}
+<script src="{{ url_for('static', filename='tree-view.js') }}"></script>
 <script>
     let activeVisualizer = 'simple';
     let graphLoaded = false;
     let graphStats = null;
+    let treeView = null;
 
     async function loadGraph() {
         const plugin = document.getElementById('plugin-select').value;
@@ -110,6 +117,7 @@
                 status.textContent = `✓ Loaded: ${data.nodes} nodes, ${data.edges} edges`;
                 status.style.color = 'green';
                 await renderVisualizer();
+                await treeView.refresh(graphLoaded);
             } else {
                 status.textContent = `✗ ${data.error}`;
                 status.style.color = 'red';
@@ -195,6 +203,11 @@
     let histIdx = -1;
 
     document.addEventListener('DOMContentLoaded', () => {
+        // Initialize tree view
+        treeView = new TreeView('tree-canvas');
+        treeView.renderFromSnapshot();
+
+        // Terminal history navigation
         const input = document.getElementById('terminal-input');
         input.addEventListener('keydown', e => {
             if (e.key === 'ArrowUp') {
@@ -218,6 +231,7 @@
         if (['create', 'edit', 'delete', 'clear', 'reset', 'search', 'filter']
             .some(k => cmd.startsWith(k))) {
             await renderVisualizer();
+            await treeView.refresh(graphLoaded);
         }
     }
 
@@ -255,10 +269,10 @@
     }
 
     window.addEventListener('resize', () => {
-        if (!graphLoaded) {
-            return;
-        }
-        renderVisualizer().catch(() => { });
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+        renderTreeViewFromSnapshot();
     });
 </script>
 {% endblock %}
