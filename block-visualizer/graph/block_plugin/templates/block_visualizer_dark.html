@@ -1,0 +1,404 @@
+<style>
+    #graph-container {
+        width: __WIDTH__px;
+        height: __HEIGHT__px;
+        border: 1px solid #2d2d2d;
+        margin: 12px auto;
+        background: #1a1a1a;
+        overflow: hidden;
+        position: relative;
+    }
+
+    .block-group { cursor: pointer; }
+
+    .block-rect {
+        fill: #2a2a2a;
+        stroke: #5b8fa8;
+        stroke-width: 1.5px;
+    }
+
+    .block-rect.selected {
+        stroke: #f4b942;
+        stroke-width: 2.5px;
+    }
+
+    .block-header-bg {
+        fill: #5b8fa8;
+    }
+
+    .block-header-text {
+        font: bold 12px monospace;
+        fill: #fff;
+        text-anchor: middle;
+        pointer-events: none;
+    }
+
+    .block-divider {
+        stroke: #444;
+        stroke-width: 1;
+    }
+
+    .block-attr-key {
+        font: 11px monospace;
+        fill: #5b8fa8;
+        pointer-events: none;
+    }
+
+    .block-attr-val {
+        font: 11px monospace;
+        fill: #ccc;
+        text-anchor: end;
+        pointer-events: none;
+    }
+
+    .block-no-attr {
+        font: 10px monospace;
+        fill: #666;
+        text-anchor: middle;
+        pointer-events: none;
+    }
+
+    .link {
+        stroke: #bbb;
+        stroke-width: 1.5px;
+    }
+
+    .link-label {
+        font-size: 10px;
+        fill: #888;
+        text-anchor: middle;
+        pointer-events: none;
+    }
+
+    marker#arrowhead path {
+        fill: #999;
+    }
+
+    #node-tooltip {
+        position: absolute;
+        padding: 10px;
+        background: rgba(40, 40, 40, 0.95);
+        border: 1px solid #555;
+        border-radius: 4px;
+        color: #fff;
+        font-family: monospace;
+        font-size: 12px;
+        pointer-events: none;
+        display: none;
+        z-index: 1000;
+        max-width: 320px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+    }
+
+    #node-tooltip .tooltip-title {
+        font-weight: bold;
+        margin-bottom: 6px;
+        color: #ff8c00;
+        border-bottom: 1px solid #555;
+        padding-bottom: 4px;
+    }
+
+    #node-tooltip .tooltip-item {
+        margin: 4px 0;
+    }
+
+    #node-tooltip .tooltip-key {
+        color: #5b8fa8;
+        font-weight: bold;
+    }
+</style>
+
+<script id="nodes-data" type="application/json">__NODES_JSON__</script>
+<script id="edges-data" type="application/json">__EDGES_JSON__</script>
+
+<div id="graph-container"></div>
+
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script type="text/javascript">
+    function render() {
+        var graphNodes = JSON.parse(document.getElementById("nodes-data").textContent);
+        var graphLinks = JSON.parse(document.getElementById("edges-data").textContent);
+        var selectedNodeId = null;
+
+        var BLOCK_W = 160;
+        var HEADER_H = 32;
+        var ROW_H = 18;
+        var PAD = 6;
+
+        function blockHeight(d) {
+            var attrCount = d.data ? Object.keys(d.data).length : 0;
+            return HEADER_H + Math.max(1, attrCount) * ROW_H + PAD;
+        }
+
+        graphNodes = graphNodes.map(function (n) {
+            var copy = Object.assign({}, n);
+            copy._h = blockHeight(copy);
+            return copy;
+        });
+        graphLinks = graphLinks.map(function (e) { return Object.assign({}, e); });
+
+        var container = document.querySelector("#graph-container");
+        var width = container.clientWidth;
+        var height = container.clientHeight;
+
+        var svg = d3.select("#graph-container").append("svg")
+            .attr("width", width)
+            .attr("height", height)
+            .style("width", "100%")
+            .style("height", "100%");
+
+        var g = svg.append("g");
+
+        var zoomBehavior = d3.zoom()
+            .scaleExtent([0.05, 8])
+            .on("zoom", function (event) {
+                g.attr("transform", event.transform);
+            });
+        svg.call(zoomBehavior);
+
+        svg.append("defs").append("marker")
+            .attr("id", "arrowhead")
+            .attr("viewBox", "0 -5 10 10")
+            .attr("refX", 10)
+            .attr("refY", 0)
+            .attr("markerWidth", 6)
+            .attr("markerHeight", 6)
+            .attr("orient", "auto")
+            .append("path")
+            .attr("d", "M0,-5L10,0L0,5");
+
+        /* ---------- edges ---------- */
+
+        var linkGroup = g.append("g");
+
+        var link = linkGroup.selectAll("line")
+            .data(graphLinks)
+            .enter().append("line")
+            .attr("class", "link")
+            .attr("marker-end", function (d) {
+                return d.directed ? "url(#arrowhead)" : null;
+            });
+
+        var linkLabel = linkGroup.selectAll("text")
+            .data(graphLinks.filter(function (d) { return d.label; }))
+            .enter().append("text")
+            .attr("class", "link-label")
+            .text(function (d) { return d.label; });
+
+        /* ---------- nodes (block groups) ---------- */
+
+        var nodeGroup = g.append("g");
+
+        var block = nodeGroup.selectAll("g")
+            .data(graphNodes)
+            .enter().append("g")
+            .attr("class", "block-group");
+
+        /* outer rect */
+        block.append("rect")
+            .attr("class", "block-rect")
+            .attr("x", -BLOCK_W / 2)
+            .attr("y", function (d) { return -d._h / 2; })
+            .attr("width", BLOCK_W)
+            .attr("height", function (d) { return d._h; })
+            .attr("rx", 6)
+            .attr("ry", 6);
+
+        /* header background – two rects to get top-rounded, bottom-square header */
+        block.append("rect")
+            .attr("class", "block-header-bg")
+            .attr("x", -BLOCK_W / 2)
+            .attr("y", function (d) { return -d._h / 2; })
+            .attr("width", BLOCK_W)
+            .attr("height", HEADER_H)
+            .attr("rx", 6)
+            .attr("ry", 6);
+
+        block.append("rect")
+            .attr("class", "block-header-bg")
+            .attr("x", -BLOCK_W / 2)
+            .attr("y", function (d) { return -d._h / 2 + HEADER_H / 2; })
+            .attr("width", BLOCK_W)
+            .attr("height", HEADER_H / 2);
+
+        /* header text */
+        block.append("text")
+            .attr("class", "block-header-text")
+            .attr("x", 0)
+            .attr("y", function (d) { return -d._h / 2 + HEADER_H / 2; })
+            .attr("dominant-baseline", "middle")
+            .text(function (d) { return d.id; });
+
+        /* divider line */
+        block.append("line")
+            .attr("class", "block-divider")
+            .attr("x1", -BLOCK_W / 2)
+            .attr("y1", function (d) { return -d._h / 2 + HEADER_H; })
+            .attr("x2", BLOCK_W / 2)
+            .attr("y2", function (d) { return -d._h / 2 + HEADER_H; });
+
+        /* attributes */
+        block.each(function (d) {
+            var el = d3.select(this);
+            var topY = -d._h / 2 + HEADER_H;
+            var keys = d.data ? Object.keys(d.data) : [];
+
+            if (keys.length === 0) {
+                el.append("text")
+                    .attr("class", "block-no-attr")
+                    .attr("x", 0)
+                    .attr("y", topY + ROW_H / 2 + PAD / 2)
+                    .attr("dominant-baseline", "middle")
+                    .text("(no attributes)");
+                return;
+            }
+
+            keys.forEach(function (key, i) {
+                var rowY = topY + ROW_H * i + ROW_H / 2 + PAD / 2;
+                el.append("text")
+                    .attr("class", "block-attr-key")
+                    .attr("x", -BLOCK_W / 2 + 6)
+                    .attr("y", rowY)
+                    .attr("dominant-baseline", "middle")
+                    .text(key + ":");
+
+                var val = String(d.data[key]);
+                if (val.length > 14) val = val.substring(0, 13) + "\u2026";
+                el.append("text")
+                    .attr("class", "block-attr-val")
+                    .attr("x", BLOCK_W / 2 - 6)
+                    .attr("y", rowY)
+                    .attr("dominant-baseline", "middle")
+                    .text(val);
+            });
+        });
+
+        /* ---------- tooltip ---------- */
+
+        var tooltip = d3.select("body").append("div")
+            .attr("id", "node-tooltip");
+
+        block.on("mouseover", function (event, d) {
+            d3.select(this).select(".block-rect")
+                .attr("stroke", "#ff8c00")
+                .attr("stroke-width", 2.5);
+
+            var html = '<div class="tooltip-title">Node: ' + d.id + '</div>';
+            if (d.data && Object.keys(d.data).length > 0) {
+                for (var key in d.data) {
+                    html += '<div class="tooltip-item"><span class="tooltip-key">' + key + ':</span> ' + d.data[key] + '</div>';
+                }
+            } else {
+                html += '<div class="tooltip-item">No attributes</div>';
+            }
+
+            tooltip.html(html)
+                .style("display", "block")
+                .style("left", (event.pageX + 15) + "px")
+                .style("top", (event.pageY - 10) + "px");
+        });
+
+        block.on("mouseout", function (event, d) {
+            d3.select(this).select(".block-rect")
+                .attr("stroke", "#5b8fa8")
+                .attr("stroke-width", 1.5);
+            tooltip.style("display", "none");
+        });
+
+        block.on("mousemove", function (event) {
+            tooltip
+                .style("left", (event.pageX + 15) + "px")
+                .style("top", (event.pageY - 10) + "px");
+        });
+
+        /* ---------- edge connection points ---------- */
+
+        function edgeEndpoints(d) {
+            var sx = d.source.x, sy = d.source.y;
+            var tx = d.target.x, ty = d.target.y;
+            var sH = d.source._h, tH = d.target._h;
+            var sHW = BLOCK_W / 2, sHH = sH / 2;
+            var tHW = BLOCK_W / 2, tHH = tH / 2;
+
+            var dx = tx - sx, dy = ty - sy;
+            var dist = Math.sqrt(dx * dx + dy * dy) || 1;
+            var nx = dx / dist, ny = dy / dist;
+
+            /* clamp to source block boundary */
+            var sClipX = sHW, sClipY = sHH;
+            if (Math.abs(nx) * sHH > Math.abs(ny) * sHW) {
+                sClipX = sHW;
+                sClipY = Math.abs(ny / nx) * sHW;
+            } else {
+                sClipY = sHH;
+                sClipX = Math.abs(nx / ny) * sHH;
+            }
+            var x1 = sx + Math.sign(nx) * sClipX;
+            var y1 = sy + Math.sign(ny) * sClipY;
+
+            /* clamp to target block boundary */
+            var tClipX = tHW, tClipY = tHH;
+            if (Math.abs(nx) * tHH > Math.abs(ny) * tHW) {
+                tClipX = tHW;
+                tClipY = Math.abs(ny / nx) * tHW;
+            } else {
+                tClipY = tHH;
+                tClipX = Math.abs(nx / ny) * tHH;
+            }
+            var x2 = tx - Math.sign(nx) * tClipX;
+            var y2 = ty - Math.sign(ny) * tClipY;
+
+            return { x1: x1, y1: y1, x2: x2, y2: y2 };
+        }
+
+        /* ---------- simulation ---------- */
+
+        var linkDistance = graphNodes.length > 40 ? 140 : (graphNodes.length > 20 ? 170 : 200);
+        var chargeStrength = graphNodes.length > 40 ? -400 : (graphNodes.length > 20 ? -500 : -600);
+
+        var simulation = d3.forceSimulation(graphNodes)
+            .force("link", d3.forceLink(graphLinks).id(function (d) { return d.id; }).distance(linkDistance))
+            .force("charge", d3.forceManyBody().strength(chargeStrength))
+            .force("center", d3.forceCenter(width / 2, height / 2))
+            .force("collide", d3.forceCollide().radius(function (d) { return Math.max(BLOCK_W, d._h) / 2 + 10; }))
+            .on("tick", ticked);
+
+        function ticked() {
+            link.each(function (d) {
+                var ep = edgeEndpoints(d);
+                d3.select(this)
+                    .attr("x1", ep.x1).attr("y1", ep.y1)
+                    .attr("x2", ep.x2).attr("y2", ep.y2);
+            });
+
+            linkLabel
+                .attr("x", function (d) { return (d.source.x + d.target.x) / 2; })
+                .attr("y", function (d) { return (d.source.y + d.target.y) / 2 - 4; });
+
+            block.attr("transform", function (d) {
+                return "translate(" + d.x + "," + d.y + ")";
+            });
+        }
+
+        /* ---------- drag ---------- */
+
+        block.call(d3.drag()
+            .on("start", function (event, d) {
+                if (!event.active) simulation.alphaTarget(0.3).restart();
+                d.fx = d.x;
+                d.fy = d.y;
+            })
+            .on("drag", function (event, d) {
+                d.fx = event.x;
+                d.fy = event.y;
+            })
+            .on("end", function (event, d) {
+                if (!event.active) simulation.alphaTarget(0);
+                d.fx = null;
+                d.fy = null;
+            })
+        );
+    }
+
+    render();
+</script>

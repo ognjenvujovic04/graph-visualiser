@@ -3,6 +3,18 @@
 
 {% block title %}Home | Graph Explorer{% endblock %}
 
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<script type="application/json" id="initial-graph-data">{{ graph_json|default:"{}"|safe }}</script>
+<script>
+    const INITIAL_GRAPH = JSON.parse(document.getElementById("initial-graph-data").textContent || "{}");
+    const API = {
+        load: "{% url 'load_file' %}",
+        visualize: "{% url 'visualize_graph' %}",
+    };
+</script>
+{% endblock %}
+
 {% block content %}
 <section class="card">
     <p class="home-kicker">Graph Workspace</p>
@@ -121,7 +133,7 @@
                     <h3>Tree View</h3>
                     <span class="panel-caption">Hierarchy</span>
                 </header>
-                <div class="view-canvas">Tree view will be implemented separately.</div>
+                <div class="view-canvas" id="tree-canvas" aria-label="Tree view D3 container"></div>
             </article>
 
             <article class="graph-panel graph-panel-small">
@@ -129,7 +141,7 @@
                     <h3>Bird View</h3>
                     <span class="panel-caption">Overview</span>
                 </header>
-                <div class="view-canvas" id="bird-view-canvas"></div>
+                <div class="view-canvas" id="bird-view-canvas" aria-label="Bird view D3 container"></div>
             </article>
         </div>
 
@@ -139,7 +151,7 @@
                 <span class="panel-caption">{{ selected_visualizer|upper }}</span>
             </header>
 
-            <div class="view-canvas view-canvas-main">
+            <div class="view-canvas view-canvas-main" id="main-canvas" aria-label="Main view container">
                 {% if main_view_html %}
                     <div class="plugin-render-frame">
                         {{ main_view_html|safe }}
@@ -154,7 +166,6 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
 {{ default_paths|json_script:"default-paths-data" }}
 <script>
     window.GRAPH_EXPLORER_CONFIG = {

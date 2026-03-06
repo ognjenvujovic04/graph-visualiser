@@ -60,9 +60,8 @@ def api_visualize():
         viz_id = body.get('visualizer_id', 'simple')
         width  = int(body.get('width', 900))
         height = int(body.get('height', 700))
-        layout = body.get('layout', 'force')
-        svg = facade.visualize(viz_id, width=width, height=height, layout=layout)
-        return jsonify({'ok': True, 'svg': svg})
+        rendered_html = facade.visualize(viz_id, width=width, height=height)
+        return jsonify({'ok': True, 'html': rendered_html})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 400
 
