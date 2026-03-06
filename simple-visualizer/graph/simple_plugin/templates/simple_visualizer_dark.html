@@ -77,6 +77,18 @@
 
 <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <script type="text/javascript">
+    // ════════════════════════════════════════════════════════════════
+    // Standard Event Emission Protocol
+    // ════════════════════════════════════════════════════════════════
+    window.emitVisualizerEvent = function(type, data) {
+        if (window.parent !== window) {
+            window.parent.postMessage({ 
+                type: type, 
+                data: data || {} 
+            }, '*');
+        }
+    };
+    
     function render() {
         var graphNodes = JSON.parse(document.getElementById("nodes-data").textContent);
         var graphLinks = JSON.parse(document.getElementById("edges-data").textContent);
@@ -103,6 +115,16 @@
             .scaleExtent([0.05, 8])
             .on("zoom", function (event) {
                 g.attr("transform", event.transform);
+                // Emit viewport change event using standard protocol
+                emitVisualizerEvent('viewport-change', {
+                    transform: {
+                        x: event.transform.x,
+                        y: event.transform.y,
+                        k: event.transform.k
+                    },
+                    width: width,
+                    height: height
+                });
             });
         svg.call(zoomBehavior);
 
@@ -153,6 +175,9 @@
                 .style("fill", "#ff8c00")
                 .attr("r", 18);
 
+            // Emit node hover event using standard protocol
+            emitVisualizerEvent('node-hover', { nodeId: d.id });
+
             var html = '<div class="tooltip-title">Node: ' + d.id + '</div>';
             if (d.data && Object.keys(d.data).length > 0) {
                 for (var key in d.data) {
@@ -172,6 +197,9 @@
             d3.select(this)
                 .style("fill", "#5b8fa8")
                 .attr("r", 14);
+
+            // Emit node hover end event using standard protocol
+            emitVisualizerEvent('node-hover-end', { nodeId: d.id });
 
             tooltip.style("display", "none");
         });
@@ -200,12 +228,33 @@
 
         var linkDistance = graphNodes.length > 40 ? 55 : (graphNodes.length > 20 ? 65 : 80);
         var chargeStrength = graphNodes.length > 40 ? -120 : (graphNodes.length > 20 ? -160 : -200);
+        var tickCounter = 0;
+        var positionEmitIntervalTicks = 15;
+
+        function emitCurrentPositions(eventType) {
+            var positions = graphNodes.map(function(n) {
+                return { id: n.id, x: n.x, y: n.y };
+            });
+            emitVisualizerEvent(eventType, {
+                positions: positions,
+                links: graphLinks
+            });
+        }
 
         var simulation = d3.forceSimulation(graphNodes)
             .force("link", d3.forceLink(graphLinks).id(function (d) { return d.id; }).distance(linkDistance))
             .force("charge", d3.forceManyBody().strength(chargeStrength))
             .force("center", d3.forceCenter(width / 2, height / 2))
-            .on("tick", ticked);
+            .on("tick", function() {
+                ticked();
+                tickCounter++;
+                if (tickCounter % positionEmitIntervalTicks === 0) {
+                    emitCurrentPositions('visualizer-positions');
+                }
+            })
+            .on("end", function() {
+                emitCurrentPositions('layout-complete');
+            });
 
         node.call(d3.drag()
             .on("start", function (event, d) {
@@ -223,6 +272,34 @@
                 d.fy = null;
             })
         );
+
+        // Listen for messages from parent (standardized event protocol)
+        window.addEventListener('message', function(event) {
+            if (!event.data || !event.data.type || !event.data.data) {
+                return;
+            }
+
+            var type = event.data.type;
+            var data = event.data.data;
+
+            if (type === 'node-hover') {
+                node.each(function(d) {
+                    if (d.id === data.nodeId) {
+                        d3.select(this)
+                            .style("fill", "#ff8c00")
+                            .attr("r", 18);
+                    }
+                });
+            } else if (type === 'node-hover-end') {
+                node.each(function(d) {
+                    if (d.id === data.nodeId) {
+                        d3.select(this)
+                            .style("fill", "#5b8fa8")
+                            .attr("r", 14);
+                    }
+                });
+            }
+        });
     }
 
     render();
