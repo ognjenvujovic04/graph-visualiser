@@ -42,6 +42,38 @@
         renderVisualizerOutput(data.rendered);
     }
 
+    function normalizeVisualizer(value) {
+        const v = String(value || "").toLowerCase();
+        return v === "block" ? "block" : "simple";
+    }
+
+    function resolveVisualizerFromUI() {
+        const switchSelect = document.getElementById("visualizer-id-switch");
+        const createSelect = document.getElementById("visualizer-id");
+        if (switchSelect && switchSelect.value) return normalizeVisualizer(switchSelect.value);
+        if (createSelect && createSelect.value) return normalizeVisualizer(createSelect.value);
+        return currentVisualizer;
+    }
+
+    function wireVisualizerSelects() {
+        const controls = [
+            document.getElementById("visualizer-id"),
+            document.getElementById("visualizer-id-switch"),
+        ].filter(Boolean);
+
+        currentVisualizer = resolveVisualizerFromUI();
+
+        for (const ctrl of controls) {
+            ctrl.addEventListener("change", async () => {
+                currentVisualizer = normalizeVisualizer(ctrl.value);
+                if (currentGraphData) {
+                    drawTree(currentGraphData);
+                }
+                await applyVisualizerMode(currentVisualizer);
+            });
+        }
+    }
+
     function wireModeButtons() {
         const buttons = Array.from(document.querySelectorAll(".mode-button[data-visualizer]"));
         if (!buttons.length) return;
@@ -67,6 +99,8 @@
 
     document.addEventListener("DOMContentLoaded", () => {
         wireModeButtons();
+        wireVisualizerSelects();
+        currentVisualizer = resolveVisualizerFromUI();
 
         if (typeof INITIAL_GRAPH !== "undefined" && INITIAL_GRAPH?.node_count > 0) {
             drawTree(INITIAL_GRAPH);
