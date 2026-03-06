@@ -84,6 +84,38 @@
                 <button class="view-tab is-active" onclick="setVisualizer('simple', this)">Simple</button>
                 <button class="view-tab" onclick="setVisualizer('block',  this)">Block</button>
             </div>
+
+            {# Filter panel #}
+            <div class="sidebar-section">
+                <div class="sidebar-header">Filters</div>
+
+                {# Input row for creating new filter #}
+                <div class="filter-input-row">
+                    <select id="filter-input-attribute" class="filter-attribute vsc-select">
+                        <option value="">Select attribute...</option>
+                    </select>
+                    <select id="filter-input-operator" class="filter-operator vsc-select">
+                        <option value="==">== (equal)</option>
+                        <option value="!=">!= (not equal)</option>
+                        <option value=">">> (greater)</option>
+                        <option value=">=">>= (greater or equal)</option>
+                        <option value="<">
+                            < (less)</option>
+                        <option value="<=">
+                            <= (less or equal)</option>
+                    </select>
+                    <input type="text" id="filter-input-value" class="filter-value vsc-input" placeholder="value">
+                </div>
+
+                {# Container for added filter tags #}
+                <div id="filter-tags-container"></div>
+
+                <div class="filter-buttons-row">
+                    <button class="vsc-btn" onclick="addFilter()">Add Filter</button>
+                    <button class="vsc-btn" onclick="resetFilters()" style="background-color: #999;">Reset</button>
+                </div>
+                <p id="filter-status" class="load-status"></p>
+            </div>
         </div>
 
     </aside>
@@ -125,6 +157,7 @@
                     const graphData = await graphRes.json();
                     if (graphData.ok) {
                         birdView.setGraphData(graphData.nodes, graphData.edges);
+                        updateAttributeDropdowns();
                     }
                 } catch (e) {
                     console.warn('Failed to load graph data for bird view:', e);
@@ -286,6 +319,219 @@
             output.appendChild(errLine);
         }
         output.scrollTop = output.scrollHeight;
+    }
+
+    // ── Filter Management ────────────────────────────────────────────────────
+    let allAttributes = new Set();
+    let addedFilters = []; // Array of {attribute, operator, value} objects
+
+    function updateAttributeDropdowns() {
+        // Fetch current graph to get all available attributes
+        if (!graphLoaded) return;
+
+        fetch('/api/graph')
+            .then(res => res.json())
+            .then(data => {
+                if (data.ok) {
+                    allAttributes.clear();
+                    data.nodes.forEach(node => {
+                        Object.keys(node.attributes).forEach(attr => allAttributes.add(attr));
+                    });
+                    updateInputAttributeSelect();
+                }
+            })
+            .catch(e => console.warn('Failed to fetch attributes:', e));
+    }
+
+    function updateInputAttributeSelect() {
+        const select = document.getElementById('filter-input-attribute');
+        const sortedAttrs = Array.from(allAttributes).sort();
+        const currentValue = select.value;
+
+        select.innerHTML = '<option value="">Select attribute...</option>';
+        sortedAttrs.forEach(attr => {
+            const option = document.createElement('option');
+            option.value = attr;
+            option.textContent = attr;
+            select.appendChild(option);
+        });
+        select.value = currentValue;
+    }
+
+    function addFilter() {
+        const attr = document.getElementById('filter-input-attribute').value.trim();
+        const op = document.getElementById('filter-input-operator').value;
+        const val = document.getElementById('filter-input-value').value.trim();
+
+        if (!attr || !val) {
+            alert('Please select an attribute and enter a value');
+            return;
+        }
+
+        // Add to filters array
+        addedFilters.push({ attribute: attr, operator: op, value: val });
+
+        // Clear input row
+        document.getElementById('filter-input-attribute').value = '';
+        document.getElementById('filter-input-operator').value = '==';
+        document.getElementById('filter-input-value').value = '';
+
+        // Render filter tags
+        renderFilterTags();
+
+        // Auto-apply filters after adding a new one
+        syncGraphWithFilters();
+    }
+
+    function removeFilter(index) {
+        addedFilters.splice(index, 1);
+        renderFilterTags();
+
+        // Auto-apply remaining filters after removing one
+        syncGraphWithFilters();
+    }
+
+    function renderFilterTags() {
+        const container = document.getElementById('filter-tags-container');
+
+        if (addedFilters.length === 0) {
+            container.innerHTML = '';
+            return;
+        }
+
+        container.innerHTML = addedFilters.map((filter, index) => `
+            <div class="filter-tag">
+                <span class="filter-tag-text">${filter.attribute} ${filter.operator} ${filter.value}</span>
+                <button class="filter-tag-remove" onclick="removeFilter(${index})" title="Remove filter">×</button>
+            </div>
+        `).join('');
+    }
+
+    async function applyFilters() {
+        if (!graphLoaded) {
+            alert('Please load a graph first');
+            return;
+        }
+
+        const filters = addedFilters.map(f => `${f.attribute} ${f.operator} ${f.value}`);
+
+        const status = document.getElementById('filter-status');
+        status.textContent = 'Filtering…';
+        status.style.color = '#999';
+
+        try {
+            const res = await fetch('/api/filter', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filters })
+            });
+            const data = await res.json();
+
+            if (data.ok) {
+                graphStats = { nodes: data.nodes_count, edges: data.edges_count };
+                status.textContent = `Filtered: ${data.nodes_count} nodes, ${data.edges_count} edges`;
+                status.style.color = 'green';
+                updateGraphStats();
+
+                // Update visualizer with filtered graph
+                birdView.setGraphData(data.nodes, data.edges);
+                await renderVisualizer();
+
+                // Update tree view with filtered graph
+                if (treeView) {
+                    await treeView.refresh(graphLoaded);
+                }
+            } else {
+                status.textContent = `Error: ${data.error}`;
+                status.style.color = 'red';
+            }
+        } catch (e) {
+            status.textContent = `Error: ${e}`;
+            status.style.color = 'red';
+        }
+    }
+
+    async function syncGraphWithFilters() {
+        if (!graphLoaded) return;
+
+        if (addedFilters.length === 0) {
+            resetFiltersBackend();
+            return;
+        }
+
+        const status = document.getElementById('filter-status');
+        status.textContent = 'Updating filters…';
+        status.style.color = '#999';
+
+        try {
+            const resetRes = await fetch('/api/reset', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            });
+            const resetData = await resetRes.json();
+            if (!resetData.ok) {
+                status.textContent = `Error: ${resetData.error}`;
+                status.style.color = 'red';
+                return;
+            }
+
+            await applyFilters();
+        } catch (e) {
+            status.textContent = `Error: ${e}`;
+            status.style.color = 'red';
+        }
+    }
+
+    function resetFilters() {
+        // Clear added filters
+        addedFilters = [];
+        renderFilterTags();
+
+        // Clear input row
+        document.getElementById('filter-input-attribute').value = '';
+        document.getElementById('filter-input-operator').value = '==';
+        document.getElementById('filter-input-value').value = '';
+
+        resetFiltersBackend();
+    }
+
+    function resetFiltersBackend() {
+        const status = document.getElementById('filter-status');
+        status.textContent = 'Resetting…';
+        status.style.color = '#999';
+
+        // Call reset endpoint on backend
+        fetch('/api/reset', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.ok) {
+                    graphStats = { nodes: data.nodes_count, edges: data.edges_count };
+                    status.textContent = `Reset: ${data.nodes_count} nodes, ${data.edges_count} edges`;
+                    status.style.color = 'green';
+                    updateGraphStats();
+
+                    // Update all views with reset graph
+                    birdView.setGraphData(data.nodes, data.edges);
+                    renderVisualizer();
+                    if (treeView) {
+                        treeView.refresh(graphLoaded);
+                    }
+                } else {
+                    status.textContent = `Error: ${data.error}`;
+                    status.style.color = 'red';
+                }
+            })
+            .catch(e => {
+                status.textContent = `Error: ${e}`;
+                status.style.color = 'red';
+            });
+
+        updateInputAttributeSelect();
     }
 
     window.addEventListener('resize', () => {

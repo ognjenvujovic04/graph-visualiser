@@ -109,5 +109,68 @@ def api_graph():
         return jsonify({'ok': False, 'error': str(e)}), 400
 
 
+@app.route('/api/filter', methods=['POST'])
+def api_filter():
+    try:
+        body = request.get_json()
+        filters = body.get('filters', [])
+        
+        if not filters:
+            return jsonify({'ok': False, 'error': 'No filters provided'}), 400
+        
+        graph = facade.get_active_graph()
+        if graph is None:
+            return jsonify({'ok': False, 'error': 'No graph loaded'}), 400
+        
+        # Apply filters through facade - maintains filter history in workspace
+        for filter_expr in filters:
+            if not filter_expr.strip():
+                continue
+            facade.filter(filter_expr)
+        
+        # Get the filtered graph
+        filtered_graph = facade.get_active_graph()
+        
+        # Return filtered graph stats and data
+        nodes = [{'id': n.id, 'attributes': {k: str(v.value) for k, v in n.attributes.items()}}
+                 for n in filtered_graph.nodes]
+        edges = [{'id': e.id, 'source': e.source.id, 'target': e.target.id, 'label': e.label}
+                 for e in filtered_graph.edges]
+        
+        return jsonify({
+            'ok': True,
+            'nodes': nodes,
+            'edges': edges,
+            'nodes_count': len(filtered_graph.nodes),
+            'edges_count': len(filtered_graph.edges),
+        })
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 400
+
+
+@app.route('/api/reset', methods=['POST'])
+def api_reset():
+    try:
+        # Reset through facade to clear filters and search history
+        facade.reset_graph()
+        
+        # Return original graph stats
+        graph = facade.get_active_graph()
+        nodes = [{'id': n.id, 'attributes': {k: str(v.value) for k, v in n.attributes.items()}}
+                 for n in graph.nodes]
+        edges = [{'id': e.id, 'source': e.source.id, 'target': e.target.id, 'label': e.label}
+                 for e in graph.edges]
+        
+        return jsonify({
+            'ok': True,
+            'nodes': nodes,
+            'edges': edges,
+            'nodes_count': len(graph.nodes),
+            'edges_count': len(graph.edges),
+        })
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 400
+
+
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
