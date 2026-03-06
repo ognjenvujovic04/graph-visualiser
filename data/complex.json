@@ -1,0 +1,135 @@
+{
+  "@id": "root",
+  "name": "Root Server",
+  "status": "active",
+  "priority": 1,
+  "cpu_usage": 45.5,
+  "is_critical": true,
+  "children": [
+    {
+      "@id": "db1",
+      "name": "Database Primary",
+      "status": "active",
+      "priority": 2,
+      "cpu_usage": 78.2,
+      "is_critical": true,
+      "response_time": 42.5,
+      "children": [
+        {
+          "@id": "db1_cache",
+          "name": "Redis Cache",
+          "status": "active",
+          "priority": 3,
+          "cpu_usage": 12.3,
+          "is_critical": false,
+          "memory_gb": 8.5
+        },
+        {
+          "@id": "db1_backup",
+          "name": "Backup Service",
+          "status": "idle",
+          "priority": 2,
+          "cpu_usage": 5.1,
+          "is_critical": false,
+          "last_run_hours": 24
+        }
+      ]
+    },
+    {
+      "@id": "api1",
+      "name": "API Gateway",
+      "status": "active",
+      "priority": 1,
+      "cpu_usage": 62.8,
+      "is_critical": true,
+      "response_time": 15.3,
+      "children": [
+        {
+          "@id": "api1_auth",
+          "name": "Auth Service",
+          "status": "active",
+          "priority": 2,
+          "cpu_usage": 28.5,
+          "is_critical": true,
+          "error_rate": 0.2
+        },
+        {
+          "@id": "api1_log",
+          "name": "Logging Service",
+          "status": "active",
+          "priority": 3,
+          "cpu_usage": 18.9,
+          "is_critical": false,
+          "queue_size": 1500
+        },
+        {
+          "@id": "api1_monitor",
+          "name": "Monitoring Agent",
+          "status": "active",
+          "priority": 2,
+          "cpu_usage": 8.4,
+          "is_critical": false,
+          "memory_gb": 2.3
+        }
+      ]
+    },
+    {
+      "@id": "web1",
+      "name": "Web Server",
+      "status": "active",
+      "priority": 1,
+      "cpu_usage": 35.6,
+      "is_critical": false,
+      "response_time": 8.7,
+      "children": [
+        {
+          "@id": "web1_frontend",
+          "name": "Frontend",
+          "status": "active",
+          "priority": 2,
+          "cpu_usage": 22.1,
+          "is_critical": false,
+          "concurrent_users": 524
+        },
+        {
+          "@id": "web1_cdn",
+          "name": "CDN Node",
+          "status": "active",
+          "priority": 2,
+          "cpu_usage": 11.3,
+          "is_critical": false,
+          "cache_hit_rate": 89.5
+        }
+      ]
+    },
+    {
+      "@id": "cache1",
+      "name": "Distributed Cache",
+      "status": "degraded",
+      "priority": 2,
+      "cpu_usage": 92.1,
+      "is_critical": true,
+      "response_time": 125.4,
+      "children": [
+        {
+          "@id": "cache1_node1",
+          "name": "Cache Node 1",
+          "status": "active",
+          "priority": 3,
+          "cpu_usage": 88.2,
+          "is_critical": true,
+          "memory_gb": 32.0
+        },
+        {
+          "@id": "cache1_node2",
+          "name": "Cache Node 2",
+          "status": "degraded",
+          "priority": 3,
+          "cpu_usage": 95.9,
+          "is_critical": true,
+          "memory_gb": 16.5
+        }
+      ]
+    }
+  ]
+}

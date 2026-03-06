@@ -84,6 +84,55 @@
                 <button class="view-tab is-active" onclick="setVisualizer('simple', this)">Simple</button>
                 <button class="view-tab" onclick="setVisualizer('block',  this)">Block</button>
             </div>
+
+            {# Search panel #}
+            <div class="sidebar-section">
+                <div class="sidebar-header">Search</div>
+                <div class="search-input-row">
+                    <input type="text" id="search-input-query" class="search-value vsc-input"
+                        placeholder="attribute name or value contains...">
+                </div>
+
+                <div id="search-tags-container"></div>
+
+                <div class="search-buttons-row">
+                    <button class="vsc-btn" onclick="addSearch()">Add Search</button>
+                    <button class="vsc-btn" onclick="resetSearches()" style="background-color: #999;">Reset</button>
+                </div>
+                <p id="search-status" class="load-status"></p>
+            </div>
+
+            {# Filter panel #}
+            <div class="sidebar-section">
+                <div class="sidebar-header">Filters</div>
+
+                {# Input row for creating new filter #}
+                <div class="filter-input-row">
+                    <select id="filter-input-attribute" class="filter-attribute vsc-select">
+                        <option value="">Select attribute...</option>
+                    </select>
+                    <select id="filter-input-operator" class="filter-operator vsc-select">
+                        <option value="==">== (equal)</option>
+                        <option value="!=">!= (not equal)</option>
+                        <option value=">">> (greater)</option>
+                        <option value=">=">>= (greater or equal)</option>
+                        <option value="<">
+                            < (less)</option>
+                        <option value="<=">
+                            <= (less or equal)</option>
+                    </select>
+                    <input type="text" id="filter-input-value" class="filter-value vsc-input" placeholder="value">
+                </div>
+
+                {# Container for added filter tags #}
+                <div id="filter-tags-container"></div>
+
+                <div class="filter-buttons-row">
+                    <button class="vsc-btn" onclick="addFilter()">Add Filter</button>
+                    <button class="vsc-btn" onclick="resetFilters()" style="background-color: #999;">Reset</button>
+                </div>
+                <p id="filter-status" class="load-status"></p>
+            </div>
         </div>
 
     </aside>
@@ -99,6 +148,197 @@
     let graphStats = null;
     let treeView = null;
     let birdView = null;
+    let currentWorkspace = null;
+
+    // ── Workspace Management ────────────────────────────────────────────────────
+
+    async function loadWorkspaces() {
+        try {
+            const res = await fetch('/api/workspaces');
+            const data = await res.json();
+
+            if (data.ok) {
+                renderWorkspaceTabs(data.workspaces);
+
+                // Find and set active workspace
+                const activeWs = data.workspaces.find(ws => ws.is_active);
+                if (activeWs) {
+                    currentWorkspace = activeWs.name;
+                    graphLoaded = true;
+                    graphStats = { nodes: activeWs.nodes, edges: activeWs.edges };
+                    updateGraphStats();
+                    await renderVisualizer();
+                    await treeView.refresh(graphLoaded);
+                }
+            }
+        } catch (e) {
+            console.error('Failed to load workspaces:', e);
+        }
+    }
+
+    function renderWorkspaceTabs(workspaces) {
+        const container = document.getElementById('workspace-tabs-container');
+
+        const tabsHtml = workspaces.map(ws => `
+            <div class="workspace-tab ${ws.is_active ? 'active' : ''}" 
+                 onclick="switchWorkspace('${ws.name}')"
+                 ondblclick="renameWorkspace('${ws.name}')"
+                 title="${ws.name} (${ws.nodes} nodes, ${ws.edges} edges)">
+                <span class="workspace-tab-label">${ws.name}</span>
+                <span class="workspace-tab-close" onclick="event.stopPropagation(); closeWorkspace('${ws.name}')">&times;</span>
+            </div>
+        `).join('');
+
+        const addButton = '<button class="workspace-add-btn" onclick="addNewWorkspace()" title="Add workspace">+</button>';
+
+        container.innerHTML = tabsHtml + addButton;
+    }
+
+    async function switchWorkspace(name) {
+        if (name === currentWorkspace) return;
+
+        try {
+            const res = await fetch('/api/workspaces/switch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name })
+            });
+            const data = await res.json();
+
+            if (data.ok) {
+                currentWorkspace = name;
+                graphLoaded = true;
+                graphStats = { nodes: data.nodes, edges: data.edges };
+
+                // Update UI state
+                resetOperationsUIState();
+                updateGraphStats();
+                await renderVisualizer();
+                await treeView.refresh(graphLoaded);
+                await loadWorkspaces(); // Refresh tabs
+            } else {
+                console.error('Failed to switch workspace:', data.error);
+            }
+        } catch (e) {
+            console.error('Error switching workspace:', e);
+        }
+    }
+
+    async function renameWorkspace(oldName) {
+        const newName = prompt(`Rename workspace "${oldName}" to:`, oldName);
+        if (!newName || newName === oldName) return;
+
+        try {
+            const res = await fetch('/api/workspaces/rename', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ old_name: oldName, new_name: newName })
+            });
+            const data = await res.json();
+
+            if (data.ok) {
+                if (currentWorkspace === oldName) {
+                    currentWorkspace = newName;
+                }
+                await loadWorkspaces();
+            } else {
+                alert('Failed to rename workspace: ' + data.error);
+            }
+        } catch (e) {
+            alert('Error renaming workspace: ' + e);
+        }
+    }
+
+    async function closeWorkspace(name) {
+        if (!confirm(`Close workspace "${name}"?`)) return;
+
+        try {
+            const res = await fetch('/api/workspaces/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name })
+            });
+            const data = await res.json();
+
+            if (data.ok) {
+                if (name === currentWorkspace) {
+                    // Workspace was closed, update state
+                    if (data.nodes > 0) {
+                        graphLoaded = true;
+                        graphStats = { nodes: data.nodes, edges: data.edges };
+                        resetOperationsUIState();
+                        updateGraphStats();
+                        await renderVisualizer();
+                        await treeView.refresh(graphLoaded);
+                    } else {
+                        graphLoaded = false;
+                        graphStats = null;
+                        currentWorkspace = null;
+                        updateGraphStats();
+                        document.getElementById('main-canvas').innerHTML = '';
+                        await treeView.refresh(false);
+                    }
+                }
+                await loadWorkspaces();
+            } else {
+                alert('Failed to close workspace: ' + data.error);
+            }
+        } catch (e) {
+            alert('Error closing workspace: ' + e);
+        }
+    }
+
+    async function addNewWorkspace() {
+        try {
+            const res = await fetch('/api/workspaces/create', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            });
+            const data = await res.json();
+
+            if (data.ok) {
+                currentWorkspace = data.workspace_name;
+                graphLoaded = true;
+                graphStats = { nodes: 0, edges: 0 };
+
+                // Reset operations state
+                resetOperationsUIState();
+                updateGraphStats();
+
+                // Clear canvas
+                document.getElementById('main-canvas').innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:14px;">Empty workspace - load a graph to begin</div>';
+                await treeView.refresh(false);
+
+                // Refresh workspace tabs
+                await loadWorkspaces();
+
+                // Clear status
+                document.getElementById('load-status').textContent = '';
+            } else {
+                alert('Failed to create workspace: ' + data.error);
+            }
+        } catch (e) {
+            alert('Error creating workspace: ' + e);
+        }
+    }
+
+    // ── Graph Loading & Operations ────────────────────────────────────────────────────
+
+    function resetOperationsUIState() {
+        addedFilters = [];
+        addedSearches = [];
+        renderFilterTags();
+        renderSearchTags();
+
+        document.getElementById('filter-input-attribute').value = '';
+        document.getElementById('filter-input-operator').value = '==';
+        document.getElementById('filter-input-value').value = '';
+        document.getElementById('search-input-query').value = '';
+
+        document.getElementById('filter-status').textContent = '';
+        document.getElementById('search-status').textContent = '';
+    }
 
     async function loadGraph() {
         const plugin = document.getElementById('plugin-select').value;
@@ -107,17 +347,26 @@
         const status = document.getElementById('load-status');
         status.textContent = 'Loading…';
         try {
+            // Use current workspace if it exists and is empty, otherwise let backend create new one
+            const body = { plugin_id: plugin, path, directed };
+            if (currentWorkspace && graphStats && graphStats.nodes === 0 && graphStats.edges === 0) {
+                body.workspace_name = currentWorkspace;
+            }
+
             const res = await fetch('/api/load', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ plugin_id: plugin, path, directed })
+                body: JSON.stringify(body)
             });
             const data = await res.json();
             if (data.ok) {
                 graphLoaded = true;
                 graphStats = { nodes: data.nodes, edges: data.edges };
-                status.textContent = `✓ Loaded: ${data.nodes} nodes, ${data.edges} edges`;
-                status.style.color = 'green';
+                currentWorkspace = data.workspace_name;
+                status.textContent = '';
+
+                // Loading new data starts from a clean operation state.
+                resetOperationsUIState();
 
                 // Fetch full graph data for bird view
                 try {
@@ -125,6 +374,7 @@
                     const graphData = await graphRes.json();
                     if (graphData.ok) {
                         birdView.setGraphData(graphData.nodes, graphData.edges);
+                        updateAttributeDropdowns();
                     }
                 } catch (e) {
                     console.warn('Failed to load graph data for bird view:', e);
@@ -132,6 +382,9 @@
 
                 await renderVisualizer();
                 await treeView.refresh(graphLoaded);
+
+                // Refresh workspace tabs
+                await loadWorkspaces();
             } else {
                 status.textContent = `✗ ${data.error}`;
                 status.style.color = 'red';
@@ -160,6 +413,8 @@
         frame.style.height = '100%';
         frame.style.border = '0';
         frame.style.display = 'block';
+        frame.style.overflow = 'hidden';
+        frame.setAttribute('scrolling', 'no');
         frame.srcdoc = html;
 
         canvas.appendChild(frame);
@@ -227,6 +482,9 @@
         // Initialize bird view
         birdView = new BirdView('bird-canvas');
 
+        // Load existing workspaces
+        loadWorkspaces();
+
         // Terminal history navigation
         const input = document.getElementById('terminal-input');
         input.addEventListener('keydown', e => {
@@ -288,11 +546,300 @@
         output.scrollTop = output.scrollHeight;
     }
 
+    // ── Filter Management ────────────────────────────────────────────────────
+    let allAttributes = new Set();
+    let addedFilters = []; // Array of {attribute, operator, value} objects
+    let addedSearches = []; // Array of search query strings
+
+    function updateAttributeDropdowns() {
+        // Fetch current graph to get all available attributes
+        if (!graphLoaded) return;
+
+        fetch('/api/graph')
+            .then(res => res.json())
+            .then(data => {
+                if (data.ok) {
+                    allAttributes.clear();
+                    data.nodes.forEach(node => {
+                        Object.keys(node.attributes).forEach(attr => allAttributes.add(attr));
+                    });
+                    updateInputAttributeSelect();
+                }
+            })
+            .catch(e => console.warn('Failed to fetch attributes:', e));
+    }
+
+    function updateInputAttributeSelect() {
+        const select = document.getElementById('filter-input-attribute');
+        const sortedAttrs = Array.from(allAttributes).sort();
+        const currentValue = select.value;
+
+        select.innerHTML = '<option value="">Select attribute...</option>';
+        sortedAttrs.forEach(attr => {
+            const option = document.createElement('option');
+            option.value = attr;
+            option.textContent = attr;
+            select.appendChild(option);
+        });
+        select.value = currentValue;
+    }
+
+    function addFilter() {
+        const attr = document.getElementById('filter-input-attribute').value.trim();
+        const op = document.getElementById('filter-input-operator').value;
+        const val = document.getElementById('filter-input-value').value.trim();
+
+        if (!attr || !val) {
+            alert('Please select an attribute and enter a value');
+            return;
+        }
+
+        // Add to filters array
+        addedFilters.push({ attribute: attr, operator: op, value: val });
+
+        // Clear input row
+        document.getElementById('filter-input-attribute').value = '';
+        document.getElementById('filter-input-operator').value = '==';
+        document.getElementById('filter-input-value').value = '';
+
+        // Render filter tags
+        renderFilterTags();
+
+        // Re-apply all operations in backend to keep graph state synchronized.
+        syncGraphWithOperations();
+    }
+
+    function removeFilter(index) {
+        addedFilters.splice(index, 1);
+        renderFilterTags();
+
+        syncGraphWithOperations();
+    }
+
+    function addSearch() {
+        const query = document.getElementById('search-input-query').value.trim();
+        if (!query) {
+            alert('Please enter a search query');
+            return;
+        }
+
+        addedSearches.push(query);
+        document.getElementById('search-input-query').value = '';
+        renderSearchTags();
+        syncGraphWithOperations();
+    }
+
+    function removeSearch(index) {
+        addedSearches.splice(index, 1);
+        renderSearchTags();
+        syncGraphWithOperations();
+    }
+
+    function renderSearchTags() {
+        const container = document.getElementById('search-tags-container');
+
+        if (addedSearches.length === 0) {
+            container.innerHTML = '';
+            return;
+        }
+
+        container.innerHTML = addedSearches.map((query, index) => `
+            <div class="search-tag">
+                <span class="search-tag-text">contains \"${query}\"</span>
+                <button class="search-tag-remove" onclick="removeSearch(${index})" title="Remove search">×</button>
+            </div>
+        `).join('');
+    }
+
+    function renderFilterTags() {
+        const container = document.getElementById('filter-tags-container');
+
+        if (addedFilters.length === 0) {
+            container.innerHTML = '';
+            return;
+        }
+
+        container.innerHTML = addedFilters.map((filter, index) => `
+            <div class="filter-tag">
+                <span class="filter-tag-text">${filter.attribute} ${filter.operator} ${filter.value}</span>
+                <button class="filter-tag-remove" onclick="removeFilter(${index})" title="Remove filter">×</button>
+            </div>
+        `).join('');
+    }
+
+    async function applyFilters() {
+        if (!graphLoaded) {
+            alert('Please load a graph first');
+            return;
+        }
+
+        const filters = addedFilters.map(f => `${f.attribute} ${f.operator} ${f.value}`);
+
+        const status = document.getElementById('filter-status');
+        status.textContent = 'Filtering…';
+        status.style.color = '#999';
+
+        try {
+            const res = await fetch('/api/filter', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filters })
+            });
+            const data = await res.json();
+
+            if (data.ok) {
+                graphStats = { nodes: data.nodes_count, edges: data.edges_count };
+                status.textContent = '';
+                updateGraphStats();
+
+                // Update visualizer with filtered graph
+                birdView.setGraphData(data.nodes, data.edges);
+                await renderVisualizer();
+
+                // Update tree view with filtered graph
+                if (treeView) {
+                    await treeView.refresh(graphLoaded);
+                }
+            } else {
+                status.textContent = `Error: ${data.error}`;
+                status.style.color = 'red';
+            }
+        } catch (e) {
+            status.textContent = `Error: ${e}`;
+            status.style.color = 'red';
+        }
+    }
+
+    async function applySearches() {
+        if (!graphLoaded) {
+            alert('Please load a graph first');
+            return;
+        }
+
+        if (addedSearches.length === 0) {
+            return;
+        }
+
+        const status = document.getElementById('search-status');
+        status.textContent = 'Searching…';
+        status.style.color = '#999';
+
+        try {
+            const res = await fetch('/api/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ searches: addedSearches })
+            });
+            const data = await res.json();
+
+            if (!data.ok) {
+                status.textContent = `Error: ${data.error}`;
+                status.style.color = 'red';
+                throw new Error(data.error || 'Search failed');
+            }
+
+            graphStats = { nodes: data.nodes_count, edges: data.edges_count };
+            status.textContent = '';
+            updateGraphStats();
+
+            birdView.setGraphData(data.nodes, data.edges);
+            await renderVisualizer();
+            if (treeView) {
+                await treeView.refresh(graphLoaded);
+            }
+        } catch (e) {
+            status.textContent = `Error: ${e}`;
+            status.style.color = 'red';
+            throw e;
+        }
+    }
+
+    async function syncGraphWithOperations() {
+        if (!graphLoaded) return;
+
+        try {
+            const resetRes = await fetch('/api/reset', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            });
+            const resetData = await resetRes.json();
+            if (!resetData.ok) {
+                document.getElementById('filter-status').textContent = `Error: ${resetData.error}`;
+                document.getElementById('filter-status').style.color = 'red';
+                document.getElementById('search-status').textContent = `Error: ${resetData.error}`;
+                document.getElementById('search-status').style.color = 'red';
+                return;
+            }
+
+            graphStats = { nodes: resetData.nodes_count, edges: resetData.edges_count };
+            birdView.setGraphData(resetData.nodes, resetData.edges);
+            updateGraphStats();
+
+            if (addedFilters.length > 0) {
+                await applyFilters();
+            }
+            if (addedSearches.length > 0) {
+                await applySearches();
+            }
+
+            if (addedFilters.length === 0) {
+                document.getElementById('filter-status').textContent = '';
+            }
+            if (addedSearches.length === 0) {
+                document.getElementById('search-status').textContent = '';
+            }
+
+            updateAttributeDropdowns();
+
+            if (addedFilters.length === 0 && addedSearches.length === 0) {
+                await renderVisualizer();
+                if (treeView) {
+                    await treeView.refresh(graphLoaded);
+                }
+            }
+        } catch (e) {
+            document.getElementById('filter-status').textContent = `Error: ${e}`;
+            document.getElementById('filter-status').style.color = 'red';
+            document.getElementById('search-status').textContent = `Error: ${e}`;
+            document.getElementById('search-status').style.color = 'red';
+        }
+    }
+
+    function resetFilters() {
+        // Clear added filters
+        addedFilters = [];
+        renderFilterTags();
+
+        // Clear input row
+        document.getElementById('filter-input-attribute').value = '';
+        document.getElementById('filter-input-operator').value = '==';
+        document.getElementById('filter-input-value').value = '';
+
+        syncGraphWithOperations();
+    }
+
+    function resetSearches() {
+        addedSearches = [];
+        renderSearchTags();
+        document.getElementById('search-input-query').value = '';
+        syncGraphWithOperations();
+    }
+
     window.addEventListener('resize', () => {
     });
 
     document.addEventListener('DOMContentLoaded', () => {
         renderTreeViewFromSnapshot();
+
+        const searchInput = document.getElementById('search-input-query');
+        if (searchInput) {
+            searchInput.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    addSearch();
+                }
+            });
+        }
     });
 
     // Listen for messages from the visualizer iframe

@@ -1,5 +1,6 @@
 from typing import List, Optional
 from copy import deepcopy
+from datetime import datetime
 from graph.api.model.graph import Graph
 from graph.api.services.plugin import DataSourcePlugin
 
@@ -22,6 +23,7 @@ class Workspace:
         self.active_graph: Graph = deepcopy(graph)  # graf koji ide ka visualizer-u
         self.filters_history: List[str] = []
         self.search_history: List[str] = []
+        self.created_at: datetime = datetime.now()
 
     def apply_filter(self, filter_expr) -> None:
         self.active_graph = self.active_graph.filter(filter_expr)
