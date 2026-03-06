@@ -36,7 +36,7 @@ def api_load():
     try:
         body      = request.get_json()
         plugin_id = body.get('plugin_id', 'json')
-        path      = body.get('path', 'big_250.json')
+        path      = body.get('path', 'data/big_250.json')
         # resolve relative paths from project root
         if not os.path.isabs(path):
             path = os.path.join(PROJECT_ROOT, path)

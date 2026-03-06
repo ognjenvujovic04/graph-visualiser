@@ -17,17 +17,17 @@ def main():
     ds_factory = DataSourceFactory(registry)
     if data == "1":
         ds = ds_factory.create_plugin("json")
-        #g = ds.load(path="sample.json", direct=directed)  # --> aciklican, neusmeren
-        g = ds.load(path="big_250.json",direct=directed) #--> primer ciklicnog i umerenog
+        #g = ds.load(path="data/sample.json", direct=directed)  # --> aciklican, neusmeren
+        g = ds.load(path="data/big_250.json",direct=directed) #--> primer ciklicnog i umerenog
     elif data == "2":
         ds = ds_factory.create_plugin("csv")
-       # g = ds.load(path="sample.csv", direct=directed)
-        g = ds.load(path="big_250.csv", direct=directed)
+       # g = ds.load(path="data/sample.csv", direct=directed)
+        g = ds.load(path="data/big_250.csv", direct=directed)
     else:
         ds = ds_factory.create_plugin("xml")
-        #g = ds.load(path="sample.xml", direct=directed)
-        g = ds.load(path="big_250.xml", direct=directed)
-        #g = ds.load(path="big_250_cycle.xml", direct=directed)
+        #g = ds.load(path="data/sample.xml", direct=directed)
+        g = ds.load(path="data/big_250.xml", direct=directed)
+        #g = ds.load(path="data/big_250_cycle.xml", direct=directed)
 
     print("\nNODES:")
     for n in g.nodes:

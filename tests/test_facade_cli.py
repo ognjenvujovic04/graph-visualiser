@@ -36,7 +36,7 @@ def main():
     # ------------------------------------------------------------------
     section("2. Load graph (JSON)")
     # ------------------------------------------------------------------
-    graph = facade.load_graph("json", path="big_250.json", direct="y")
+    graph = facade.load_graph("json", path="data/big_250.json", direct="y")
     print(f"Loaded: {graph}")
 
     # ------------------------------------------------------------------
