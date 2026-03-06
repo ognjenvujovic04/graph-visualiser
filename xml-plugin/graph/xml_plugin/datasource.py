@@ -20,6 +20,6 @@ class XMLDataSource(DataSourcePlugin):
         if not path:
             raise ValueError("Missing path")
 
-        directed = kwargs.get("direct", "y").lower() == "y"
+        directed = kwargs.get("directed", False)
 
         return self.__parser.parse(path, directed=directed)

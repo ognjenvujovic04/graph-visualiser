@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Home | Graph Explorer{% endblock %}
 
@@ -6,81 +7,159 @@
 <section class="card">
     <p class="home-kicker">Graph Workspace</p>
     <h1 class="page-title">Graph dashboard layout</h1>
-    <p class="page-subtitle">
-        Some text.
-    </p>
 
-    <div class="mode-switch" role="group" aria-label="View mode">
-        <button type="button" class="mode-button is-active">Simple View</button>
-        <button type="button" class="mode-button">Block View</button>
-    </div>
+    {% if error_message %}
+        <div class="alert alert-error">{{ error_message }}</div>
+    {% endif %}
+
+    {% if success_message %}
+        <div class="alert alert-success">{{ success_message }}</div>
+    {% endif %}
+
+    <form method="post" class="load-graph-form">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="create">
+
+        <div class="load-grid">
+            <div class="filter-field">
+                <label class="filter-label" for="plugin-id">Datasource Plugin</label>
+                <select id="plugin-id" name="plugin_id" class="filter-input">
+                    {% for ds in datasources %}
+                        <option value="{{ ds|lower }}" {% if ds|lower == selected_datasource %}selected{% endif %}>{{ ds }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="filter-field">
+                <label class="filter-label" for="visualizer-id">Visualizer</label>
+                <select id="visualizer-id" name="visualizer_id" class="filter-input">
+                    {% for vz in visualizers %}
+                        <option value="{{ vz|lower }}" {% if vz|lower == selected_visualizer %}selected{% endif %}>{{ vz }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="filter-field">
+                <label class="filter-label" for="workspace-name">New workspace name</label>
+                <input id="workspace-name" name="workspace_name" class="filter-input" type="text" value="{{ workspace_name }}">
+            </div>
+
+            <div class="filter-field filter-field-wide">
+                <label class="filter-label" for="graph-path">Path</label>
+                <input id="graph-path" name="path" class="filter-input" type="text" value="{{ path }}">
+            </div>
+
+            <div class="filter-field">
+                <label class="filter-label" for="id-key">ID Key</label>
+                <input id="id-key" name="id_key" class="filter-input" type="text" value="{{ id_key }}">
+            </div>
+
+            <div class="filter-field">
+                <label class="filter-label" for="ref-key">REF Key</label>
+                <input id="ref-key" name="ref_key" class="filter-input" type="text" value="{{ ref_key }}">
+            </div>
+
+            <div class="filter-field checkbox-field">
+                <label class="filter-label" for="treat-string-refs">String refs as IDs</label>
+                <input id="treat-string-refs" name="treat_string_refs_as_ids" type="checkbox" {% if treat_string_refs_as_ids %}checked{% endif %}>
+            </div>
+
+            <div class="filter-field checkbox-field">
+                <label class="filter-label" for="directed">Directed graph</label>
+                <input id="directed" name="directed" type="checkbox" {% if directed %}checked{% endif %}>
+            </div>
+        </div>
+
+        <div class="load-actions">
+            <button type="submit" class="mode-button is-active">Create / Load Workspace</button>
+        </div>
+    </form>
+</section>
+
+<section class="card card-gap">
+    <h2 class="section-title">Workspace Management</h2>
+
+    <form method="post" class="load-graph-form">
+        {% csrf_token %}
+
+        <div class="load-grid">
+            <div class="filter-field">
+                <label class="filter-label" for="selected-workspace">Available Workspaces</label>
+                <select id="selected-workspace" name="selected_workspace" class="filter-input">
+                    {% for ws in workspace_names %}
+                        <option value="{{ ws }}" {% if ws == selected_workspace %}selected{% endif %}>
+                            {{ ws }}{% if ws == active_workspace_name %} (active){% endif %}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="filter-field">
+                <label class="filter-label" for="visualizer-id-switch">Visualizer</label>
+                <select id="visualizer-id-switch" name="visualizer_id" class="filter-input">
+                    {% for vz in visualizers %}
+                        <option value="{{ vz|lower }}" {% if vz|lower == selected_visualizer %}selected{% endif %}>{{ vz }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="load-actions">
+            <button type="submit" name="action" value="switch" class="mode-button is-active">Switch Workspace</button>
+            <button type="submit" name="action" value="delete" class="mode-button">Delete Workspace</button>
+        </div>
+    </form>
 </section>
 
 <section class="card card-gap">
     <h2 class="section-title">Graph Views</h2>
 
-    <div class="global-filter-bar">
-        <p class="filter-label">Global Filter</p>
-        <div class="filter-row" aria-label="Global filter expression">
-            <div class="filter-field">
-                <label class="filter-label" for="filter-field">Field</label>
-                <input id="filter-field" class="filter-input" type="text" value="age" placeholder="e.g. age">
-            </div>
-
-            <div class="filter-field filter-field-operator">
-                <label class="filter-label" for="filter-operator">Operator</label>
-                <select id="filter-operator" class="filter-input">
-                    <option value=">">&gt;</option>
-                    <option value=">=">&gt;=</option>
-                    <option value="=">=</option>
-                    <option value="<">&lt;</option>
-                    <option value="<=">&lt;=</option>
-                    <option value="!=">!=</option>
-                </select>
-            </div>
-
-            <div class="filter-field">
-                <label class="filter-label" for="filter-value">Value</label>
-                <input id="filter-value" class="filter-input" type="text" placeholder="e.g. 20">
-            </div>
-        </div>
-    </div>
-
     <div class="workspace-grid">
         <div class="side-views">
-            <article class="graph-panel graph-panel-small" id="tree-view" aria-label="Tree graph view">
+            <article class="graph-panel graph-panel-small">
                 <header class="panel-header">
                     <h3>Tree View</h3>
                     <span class="panel-caption">Hierarchy</span>
                 </header>
-
-                <div class="view-canvas" aria-label="Tree view D3 container">
-                    Tree D3 placeholder
-                </div>
+                <div class="view-canvas">Tree view will be implemented separately.</div>
             </article>
 
-            <article class="graph-panel graph-panel-small" id="bird-view" aria-label="Bird eye graph view">
+            <article class="graph-panel graph-panel-small">
                 <header class="panel-header">
                     <h3>Bird View</h3>
                     <span class="panel-caption">Overview</span>
                 </header>
-
-                <div class="view-canvas" aria-label="Bird view D3 container">
-                    Bird D3 placeholder
-                </div>
+                <div class="view-canvas" id="bird-view-canvas"></div>
             </article>
         </div>
 
-        <article class="graph-panel graph-panel-main" id="main-view" aria-label="Main graph view">
+        <article class="graph-panel graph-panel-main">
             <header class="panel-header">
                 <h3>Main View</h3>
-                <span class="panel-caption">Detailed</span>
+                <span class="panel-caption">{{ selected_visualizer|upper }}</span>
             </header>
 
-            <div class="view-canvas view-canvas-main" aria-label="Main view D3 container">
-                Main D3 placeholder
+            <div class="view-canvas view-canvas-main">
+                {% if main_view_html %}
+                    <div class="plugin-render-frame">
+                        {{ main_view_html|safe }}
+                    </div>
+                {% else %}
+                    <div>No graph rendered.</div>
+                {% endif %}
             </div>
         </article>
     </div>
 </section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+{{ default_paths|json_script:"default-paths-data" }}
+<script>
+    window.GRAPH_EXPLORER_CONFIG = {
+        graphDataUrl: "{% url 'graph_data' %}"
+    };
+</script>
+<script src="{% static 'home.js' %}"></script>
 {% endblock %}

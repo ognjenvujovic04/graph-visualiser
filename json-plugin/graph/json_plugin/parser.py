@@ -15,18 +15,17 @@ class JsonGraphParser(object):
     def __init__(self, builder: Builder = None):
         self.__builder = builder or GraphBuilder()
 
-    def parse(self, data: Any, cfg: JsonConfig, dir:str) -> Graph:
-        # JSON moze biti ciklican, default dozvoli cikluse
-        directed = dir == "y"
+    def parse(self, data: Any, cfg: JsonConfig, directed: bool) -> Graph:
         graph = self.__builder.build_graph(directed=directed, cyclic=True)
-        # PASS 1: index svih @id (da prepoznamo string reference)
+
         id_index: Dict[str, str] = {}
         self.__index_ids(data, cfg, id_index)
 
-        # PASS 2: izgradi graf
         self.__build(data, cfg, graph, id_index, parent_node=None, edge_label=None)
+
         if not graph.has_cycle():
             graph.cyclic = False
+
         return graph
 
     # ---------- PASS 1: index all @id ----------

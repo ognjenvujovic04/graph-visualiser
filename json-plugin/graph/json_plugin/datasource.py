@@ -18,7 +18,7 @@ class JsonDataSource(DataSourcePlugin):
 
     def identifier(self) -> str:
         return "json"
-
+    
     def load(self, **kwargs) -> Graph:
         path = kwargs.get("path")
         if not path:
@@ -33,7 +33,7 @@ class JsonDataSource(DataSourcePlugin):
         with open(path, "r", encoding="utf-8") as f:
             data: Any = json.load(f)
 
-        dir = kwargs.get("direct")
-        return self.__parser.parse(data, cfg, dir)
+        directed = kwargs.get("directed", False)
+        return self.__parser.parse(data, cfg, directed)
     
         
