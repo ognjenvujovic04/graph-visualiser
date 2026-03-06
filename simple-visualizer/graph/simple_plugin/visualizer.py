@@ -1,17 +1,19 @@
+import json
+from datetime import date, datetime
+from pathlib import Path
+
 from graph.api.services.plugin import VisualizerPlugin
 from graph.api.model.graph import Graph
-from .renderer import SvgRenderer
+from graph.api.model.attributes import AttributeValue
 
 
 class SimpleVisualizer(VisualizerPlugin):
     """
-    Simple visualizer plugin that renders graphs as SVG.
-    Each node is represented as a circle with its ID labeled.
-    Edges are drawn as lines connecting the nodes.
+    Simple visualizer plugin that renders a complete HTML snippet.
+    The returned HTML includes CSS, D3 script, and serialized graph data.
     """
 
-    def __init__(self):
-        self.__renderer = SvgRenderer()
+    _TEMPLATE_PATH = Path(__file__).with_name("templates") / "simple_visualizer.html"
 
     def name(self) -> str:
         return "Simple Visualizer"
@@ -21,16 +23,15 @@ class SimpleVisualizer(VisualizerPlugin):
 
     def visualize(self, graph: Graph, **kwargs) -> str:
         """
-        Visualize the graph as an SVG string.
+        Visualize the graph as an HTML string using force-directed layout.
         
         kwargs:
-            - width: SVG canvas width (default: 800)
-            - height: SVG canvas height (default: 600)
-            - node_radius: radius of each node circle (default: 30)
-            - layout: layout strategy (default: 'force') - can be 'force', 'circle', 'grid'
+            - width: canvas width in pixels (default: 800)
+            - height: canvas height in pixels (default: 600)
+            - node_radius: radius of each node circle (default: 20)
         
         Returns:
-            SVG string representation of the graph
+            HTML string representation of the graph
         """
         if not isinstance(graph, Graph):
             raise TypeError("graph must be Graph instance")
@@ -38,8 +39,7 @@ class SimpleVisualizer(VisualizerPlugin):
         # Extract parameters from kwargs
         width = kwargs.get("width", 800)
         height = kwargs.get("height", 600)
-        node_radius = kwargs.get("node_radius", 30)
-        layout = kwargs.get("layout", "force")
+        node_radius = kwargs.get("node_radius", 20)
 
         # Validate parameters
         if not isinstance(width, int) or width <= 0:
@@ -49,11 +49,67 @@ class SimpleVisualizer(VisualizerPlugin):
         if not isinstance(node_radius, int) or node_radius <= 0:
             raise ValueError("node_radius must be positive integer")
 
-        # Render and return SVG
-        return self.__renderer.render(
-            graph,
-            width=width,
-            height=height,
-            node_radius=node_radius,
-            layout=layout
-        )
+        nodes_payload = [
+            {
+                "id": str(node.id),
+                "data": self._sanitize_attributes(node.attributes),
+            }
+            for node in graph.nodes
+        ]
+
+        edges_payload = [
+            {
+                "source": str(edge.source.id),
+                "target": str(edge.target.id),
+                "directed": graph.directed,
+                "label": edge.label,
+                "data": self._sanitize_attributes(edge.attributes),
+            }
+            for edge in graph.edges
+        ]
+
+        nodes_json = self._json_for_script(nodes_payload)
+        edges_json = self._json_for_script(edges_payload)
+
+        template = self._load_template()
+        return (
+            template
+            .replace("__WIDTH__", str(width))
+            .replace("__HEIGHT__", str(height))
+            .replace("__NODES_JSON__", nodes_json)
+            .replace("__EDGES_JSON__", edges_json)
+            .replace("__NODE_RADIUS__", str(node_radius))
+        ).strip()
+
+    def _load_template(self) -> str:
+        if not self._TEMPLATE_PATH.exists():
+            raise FileNotFoundError(f"Template not found: {self._TEMPLATE_PATH}")
+        return self._TEMPLATE_PATH.read_text(encoding="utf-8")
+
+    def _safe_value(self, value):
+        if isinstance(value, datetime):
+            return value.strftime("%d.%m.%Y. %H:%M")
+        if isinstance(value, date):
+            return value.strftime("%d.%m.%Y.")
+        return str(value)
+
+    def _sanitize_attributes(self, attributes) -> dict:
+        if not isinstance(attributes, dict):
+            return {}
+
+        sanitized = {}
+        for key, attr_value in attributes.items():
+            if key is None or attr_value is None:
+                continue
+
+            raw_value = attr_value
+            if isinstance(attr_value, AttributeValue):
+                raw_value = attr_value.value
+
+            sanitized[str(key)] = self._safe_value(raw_value)
+
+        return sanitized
+
+    def _json_for_script(self, value) -> str:
+        # Escape '</' so user data cannot close the script element.
+        return json.dumps(value).replace("</", "<\\/")
