@@ -1,5 +1,5 @@
 from typing import Optional
-import copy
+from datetime import datetime
 
 from graph.api.model.graph import Graph
 from graph.api.model.node import Node
@@ -8,6 +8,7 @@ from graph.api.model.attributes import AttributeValue, AttributeType
 from graph.use_cases.plugin_recognition import PluginRegistry
 from graph.factory.data_source_factory import DataSourceFactory
 from graph.factory.visualizer_factory import VisualizerFactory
+from graph.workspaces.workspace_manager import WorkspaceManager
 
 
 class PlatformFacade:
@@ -21,8 +22,9 @@ class PlatformFacade:
 
     def __new__(cls) -> 'PlatformFacade':
         if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._initialized = False
+            inst = super().__new__(cls)
+            inst._initialized = False
+            cls._instance = inst
         return cls._instance
 
     def __init__(self):
@@ -35,9 +37,7 @@ class PlatformFacade:
 
         self._ds_factory = DataSourceFactory(self._registry)
         self._viz_factory = VisualizerFactory(self._registry)
-
-        self._active_graph: Optional[Graph] = None
-        self._original_graph: Optional[Graph] = None  # for reset
+        self._workspace_manager = WorkspaceManager()
 
     # ------------------------------------------------------------------
     # Singleton access
@@ -45,9 +45,8 @@ class PlatformFacade:
 
     @classmethod
     def get_instance(cls) -> 'PlatformFacade':
-        if cls._instance is None:
-            cls._instance = cls()
-        return cls._instance
+        """Convenience class method — equivalent to PlatformFacade()."""
+        return cls()
 
     # ------------------------------------------------------------------
     # Plugin info
@@ -61,51 +60,91 @@ class PlatformFacade:
         """Return list of available visualizer plugins."""
         return self._registry.visualizers
 
+    def get_datasource_ids(self) -> list:
+        """Return list of datasource plugin identifiers."""
+        return [p.identifier() for p in self._registry.datasources]
+
+    def get_visualizer_ids(self) -> list:
+        """Return list of visualizer plugin identifiers."""
+        return [p.identifier() for p in self._registry.visualizers]
+
     # ------------------------------------------------------------------
     # Graph loading
     # ------------------------------------------------------------------
 
-    def load_graph(self, plugin_id: str, **kwargs) -> Graph:
+    def load_graph(self, plugin_id: str, workspace_name: str = "default", **kwargs) -> Graph:
         """
         Load a graph using the specified datasource plugin.
-        The loaded graph becomes the active graph.
+        Creates a new workspace or replaces existing one with same name.
 
-        Args:
-            plugin_id: identifier of the datasource plugin (e.g. 'json', 'csv')
-            **kwargs:  plugin-specific args (e.g. path='file.json', direct='y')
-
-        Returns:
-            The loaded Graph
+        Raises ValueError if plugin_id is not found.
         """
-        plugin = self._ds_factory.create_plugin(plugin_id)
-        graph = plugin.load(**kwargs)
+        if plugin_id not in self.get_datasource_ids():
+            raise ValueError(
+                f"Unknown datasource plugin: '{plugin_id}'. "
+                f"Available: {self.get_datasource_ids()}"
+            )
 
-        self._original_graph = copy.deepcopy(graph)
-        self._active_graph = graph
-        return graph
+        plugin = self._ds_factory.create_plugin(plugin_id)
+
+        if workspace_name in self._workspace_manager.workspaces:
+            self._workspace_manager.delete_workspace(workspace_name)
+
+        ws = self._workspace_manager.create_workspace_from_plugin(
+            plugin, workspace_name, **kwargs
+        )
+        self._workspace_manager.switch_workspace(workspace_name)
+        return ws.get_active_graph()
 
     def get_active_graph(self) -> Optional[Graph]:
         """Return the currently active graph."""
-        return self._active_graph
+        return self._workspace_manager.get_active_graph()
 
     def reset_graph(self) -> Graph:
-        """
-        Restore the active graph to the original loaded graph,
-        discarding all search/filter operations.
-        """
-        if self._original_graph is None:
-            raise ValueError("No graph loaded")
-        self._active_graph = copy.deepcopy(self._original_graph)
-        return self._active_graph
+        """Restore active graph to original, discarding search/filter history."""
+        ws = self._require_workspace()
+        ws.reset_active_graph()
+        return ws.get_active_graph()
 
     def clear_graph(self) -> None:
         """Remove all nodes and edges from the active graph."""
-        if self._active_graph is None:
-            raise ValueError("No graph loaded")
-        for edge in list(self._active_graph.edges):
-            self._active_graph.remove_edge(edge)
-        for node in list(self._active_graph.nodes):
-            self._active_graph.remove_node(node)
+        graph = self._require_graph()
+        # First remove all edges so nodes become disconnected
+        for edge in list(graph.edges):
+            graph.remove_edge(edge)
+        # Then remove all nodes (safe — no connected edges remain)
+        for node in list(graph.nodes):
+            graph.remove_node(node)
+
+    # ------------------------------------------------------------------
+    # Workspace operations
+    # ------------------------------------------------------------------
+
+    def get_workspace_manager(self) -> WorkspaceManager:
+        return self._workspace_manager
+
+    def create_workspace(self, name: str, plugin_id: str, **kwargs) -> None:
+        """Create a new workspace and switch to it."""
+        if plugin_id not in self.get_datasource_ids():
+            raise ValueError(
+                f"Unknown datasource plugin: '{plugin_id}'. "
+                f"Available: {self.get_datasource_ids()}"
+            )
+        plugin = self._ds_factory.create_plugin(plugin_id)
+        self._workspace_manager.create_workspace_from_plugin(plugin, name, **kwargs)
+        self._workspace_manager.switch_workspace(name)
+
+    def switch_workspace(self, name: str) -> None:
+        """Switch to an existing workspace."""
+        self._workspace_manager.switch_workspace(name)
+
+    def list_workspaces(self) -> dict:
+        """Return all workspaces."""
+        return self._workspace_manager.list_workspaces()
+
+    def delete_workspace(self, name: str) -> None:
+        """Delete a workspace by name."""
+        self._workspace_manager.delete_workspace(name)
 
     # ------------------------------------------------------------------
     # Visualization
@@ -114,102 +153,63 @@ class PlatformFacade:
     def visualize(self, visualizer_id: str, **kwargs) -> str:
         """
         Visualize the active graph using the specified visualizer plugin.
+        Returns SVG/HTML string.
 
-        Args:
-            visualizer_id: identifier of the visualizer plugin (e.g. 'simple', 'block')
-            **kwargs: plugin-specific args (e.g. width=800, height=600, layout='force')
-
-        Returns:
-            SVG string
+        Raises ValueError if visualizer_id is not found.
         """
-        self._require_graph()
+        if visualizer_id not in self.get_visualizer_ids():
+            raise ValueError(
+                f"Unknown visualizer plugin: '{visualizer_id}'. "
+                f"Available: {self.get_visualizer_ids()}"
+            )
+        graph = self._require_graph()
         plugin = self._viz_factory.create_plugin(visualizer_id)
-        return plugin.visualize(self._active_graph, **kwargs)
+        return plugin.visualize(graph, **kwargs)
 
     # ------------------------------------------------------------------
     # Search & Filter
     # ------------------------------------------------------------------
 
     def search(self, text: str) -> Graph:
-        """
-        Search the active graph and update it with the resulting subgraph.
-
-        Args:
-            text: search query
-
-        Returns:
-            The new active graph (subgraph)
-        """
-        self._require_graph()
-        self._active_graph = self._active_graph.search(text)
-        return self._active_graph
+        """Search the active graph. Updates workspace active graph."""
+        ws = self._require_workspace()
+        ws.apply_search(text)
+        return ws.get_active_graph()
 
     def filter(self, expr: str) -> Graph:
-        """
-        Filter the active graph and update it with the resulting subgraph.
-
-        Args:
-            expr: filter expression e.g. 'age > 30'
-
-        Returns:
-            The new active graph (subgraph)
-        """
-        self._require_graph()
-        self._active_graph = self._active_graph.filter(expr)
-        return self._active_graph
+        """Filter the active graph. Updates workspace active graph."""
+        ws = self._require_workspace()
+        ws.apply_filter(expr)
+        return ws.get_active_graph()
 
     # ------------------------------------------------------------------
     # Node operations
     # ------------------------------------------------------------------
 
     def add_node(self, node_id: str, **attributes) -> Node:
-        """
-        Add a new node to the active graph.
-
-        Args:
-            node_id: unique node identifier
-            **attributes: key=value pairs, values are auto-typed
-
-        Returns:
-            The created Node
-        """
-        self._require_graph()
+        """Add a new node to the active graph."""
+        graph = self._require_graph()
         node = Node(node_id)
         for key, value in attributes.items():
-            attr = self._parse_attribute(value)
-            node.add_attribute(key, attr)
-        self._active_graph.add_node(node)
+            node.add_attribute(key, self._parse_attribute(value))
+        graph.add_node(node)
         return node
 
     def remove_node(self, node_id: str) -> None:
         """
         Remove a node from the active graph.
         Raises ValueError if node has connected edges.
-
-        Args:
-            node_id: id of node to remove
         """
-        self._require_graph()
-        node = self._get_node_or_raise(node_id)
-        self._active_graph.remove_node(node)
+        graph = self._require_graph()
+        node = self._get_node_or_raise(graph, node_id)
+        graph.remove_node(node)
 
     def edit_node(self, node_id: str, **attributes) -> Node:
-        """
-        Edit attributes of an existing node.
-        Existing attributes are updated; new ones are added.
-
-        Args:
-            node_id: id of node to edit
-            **attributes: key=value pairs to update
-
-        Returns:
-            The updated Node
-        """
-        self._require_graph()
-        node = self._get_node_or_raise(node_id)
+        """Edit attributes of an existing node."""
+        graph = self._require_graph()
+        node = self._get_node_or_raise(graph, node_id)
         for key, value in attributes.items():
-            attr = self._parse_attribute(value)
-            node.add_attribute(key, attr)
+            node.add_attribute(key, self._parse_attribute(value))
         return node
 
     # ------------------------------------------------------------------
@@ -217,84 +217,104 @@ class PlatformFacade:
     # ------------------------------------------------------------------
 
     def add_edge(self, source_id: str, target_id: str, label: str = "") -> Edge:
-        """
-        Add a new edge between two existing nodes.
-
-        Args:
-            source_id: id of source node
-            target_id: id of target node
-            label:     optional edge label
-
-        Returns:
-            The created Edge
-        """
-        self._require_graph()
-        source = self._get_node_or_raise(source_id)
-        target = self._get_node_or_raise(target_id)
-        return self._active_graph.add_edge(source, target, label)
+        """Add a new edge between two existing nodes."""
+        graph = self._require_graph()
+        source = self._get_node_or_raise(graph, source_id)
+        target = self._get_node_or_raise(graph, target_id)
+        return graph.add_edge(source, target, label)
 
     def remove_edge(self, edge_id: str) -> None:
-        """
-        Remove an edge from the active graph.
-
-        Args:
-            edge_id: id of edge to remove
-        """
-        self._require_graph()
-        edge = self._active_graph.get_edge(edge_id)
+        """Remove an edge from the active graph."""
+        graph = self._require_graph()
+        edge = graph.get_edge(edge_id)
         if edge is None:
             raise ValueError(f"Edge '{edge_id}' not found")
-        self._active_graph.remove_edge(edge)
+        graph.remove_edge(edge)
 
     def edit_edge(self, edge_id: str, **attributes) -> Edge:
-        """
-        Edit attributes of an existing edge.
-
-        Args:
-            edge_id: id of edge to edit
-            **attributes: key=value pairs to update
-
-        Returns:
-            The updated Edge
-        """
-        self._require_graph()
-        edge = self._active_graph.get_edge(edge_id)
+        """Edit attributes of an existing edge."""
+        graph = self._require_graph()
+        edge = graph.get_edge(edge_id)
         if edge is None:
             raise ValueError(f"Edge '{edge_id}' not found")
         for key, value in attributes.items():
-            attr = self._parse_attribute(value)
-            edge.add_attribute(key, attr)
+            edge.add_attribute(key, self._parse_attribute(value))
         return edge
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _require_graph(self) -> None:
-        if self._active_graph is None:
-            raise ValueError("No graph loaded. Use load_graph() first.")
+    def _require_workspace(self):
+        ws = self._workspace_manager.get_active_workspace()
+        if ws is None:
+            raise ValueError("No workspace loaded. Use load_graph() first.")
+        return ws
 
-    def _get_node_or_raise(self, node_id: str) -> Node:
-        node = self._active_graph.get_node(node_id)
+    def _require_graph(self) -> Graph:
+        graph = self._workspace_manager.get_active_graph()
+        if graph is None:
+            raise ValueError("No graph loaded. Use load_graph() first.")
+        return graph
+
+    def _get_node_or_raise(self, graph: Graph, node_id: str) -> Node:
+        node = graph.get_node(node_id)
         if node is None:
             raise ValueError(f"Node '{node_id}' not found")
         return node
 
+    # ------------------------------------------------------------------
+    # Attribute parsing — supports int, float, date, str
+    # ------------------------------------------------------------------
+
+    # Date formats to try when auto-detecting
+    _DATE_FORMATS = [
+        "%Y-%m-%d",       # 2024-01-15
+        "%d.%m.%Y",       # 15.01.2024
+        "%d/%m/%Y",       # 15/01/2024
+        "%m/%d/%Y",       # 01/15/2024
+        "%Y-%m-%dT%H:%M:%S",  # 2024-01-15T10:30:00
+    ]
+
     @staticmethod
-    def _parse_attribute(value: str) -> AttributeValue:
+    def _parse_attribute(value) -> AttributeValue:
         """
-        Auto-detect type from string value and return AttributeValue.
-        Order: int -> float -> str
+        Auto-detect type from value and return AttributeValue.
+        Detection order: int -> float -> date -> str
+        Covers all four required types from the specification.
         """
         if isinstance(value, AttributeValue):
             return value
-        s = str(value)
+
+        # Already typed Python values
+        if isinstance(value, int) and not isinstance(value, bool):
+            return AttributeValue(AttributeType.INT, value)
+        if isinstance(value, float):
+            return AttributeValue(AttributeType.FLOAT, value)
+        if isinstance(value, datetime):
+            return AttributeValue(AttributeType.DATE, value)
+
+        s = str(value).strip()
+
+        # Try int
         try:
             return AttributeValue(AttributeType.INT, int(s))
         except ValueError:
             pass
+
+        # Try float
         try:
             return AttributeValue(AttributeType.FLOAT, float(s))
         except ValueError:
             pass
+
+        # Try date (multiple formats)
+        for fmt in PlatformFacade._DATE_FORMATS:
+            try:
+                dt = datetime.strptime(s, fmt)
+                return AttributeValue(AttributeType.DATE, dt)
+            except ValueError:
+                continue
+
+        # Fallback: string
         return AttributeValue(AttributeType.STR, s)
