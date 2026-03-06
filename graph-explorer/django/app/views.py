@@ -41,51 +41,39 @@ def _serialize_graph(graph) -> dict:
         return {
             "nodes": [],
             "links": [],
+            "edges": [],
             "directed": False,
             "cyclic": False,
             "node_count": 0,
             "edge_count": 0,
         }
 
-    nodes = []
-    links = []
-
-    for node in graph.nodes:
-        attrs = {}
-        for key, value in node.attributes.items():
-            attrs[key] = {
-                "type": getattr(value, "type", ""),
-                "value": str(getattr(value, "value", value)),
-            }
-
-        nodes.append({
-            "id": node.id,
-            "attributes": attrs,
-        })
-
-    for edge in graph.edges:
-        edge_attrs = {}
-        for key, value in edge.attributes.items():
-            edge_attrs[key] = {
-                "type": getattr(value, "type", ""),
-                "value": str(getattr(value, "value", value)),
-            }
-
-        links.append({
-            "id": edge.id,
-            "source": edge.source.id,
-            "target": edge.target.id,
-            "label": edge.label,
-            "attributes": edge_attrs,
-        })
+    nodes = [
+        {
+            "id": n.id,
+            "attributes": {k: str(getattr(v, "value", v)) for k, v in n.attributes.items()}
+        }
+        for n in graph.nodes
+    ]
+    
+    edges = [
+        {
+            "id": e.id, 
+            "source": e.source.id, 
+            "target": e.target.id, 
+            "label": getattr(e, "label", "")
+        }
+        for e in graph.edges
+    ]
 
     return {
         "nodes": nodes,
-        "links": links,
+        "edges": edges,
+        "links": edges,  
         "directed": graph.directed,
         "cyclic": graph.cyclic,
-        "node_count": len(nodes),
-        "edge_count": len(links),
+        "node_count": len(graph.nodes),
+        "edge_count": len(graph.edges),
     }
 
 
@@ -112,13 +100,16 @@ def _get_active_workspace_name(facade: PlatformFacade) -> str:
 
 
 def _render_main_view(facade: PlatformFacade, visualizer_id: str) -> str:
-    return facade.visualize(
-        visualizer_id,
-        width=760,
-        height=520,
-        theme="light",
-        node_radius=18,
-    )
+    try:
+        return facade.visualize(
+            visualizer_id,
+            width=760,
+            height=520,
+            theme="light",
+            node_radius=18,
+        )
+    except Exception:
+        return ""
 
 
 def _build_context(
@@ -136,12 +127,17 @@ def _build_context(
     main_view_html: str = "",
     error_message: str = "",
     success_message: str = "",
+    search_text: str = "",
+    filter_field: str = "",
+    filter_operator: str = ">",
+    filter_value: str = "",
+    ui_status: str = "",
 ):
     graph = None
     try:
         graph = facade.get_active_graph()
     except Exception:
-        graph = None
+        pass
 
     graph_json = json.dumps(_serialize_graph(graph))
 
@@ -165,7 +161,31 @@ def _build_context(
         "success_message": success_message,
         "default_paths": {k: str(v) for k, v in DEFAULT_PATHS.items()},
         "graph_json": graph_json,
+        "search_text": search_text,
+        "filter_field": filter_field,
+        "filter_operator": filter_operator,
+        "filter_value": filter_value,
+        "ui_status": ui_status,
     }
+
+
+def _render_home_with_state(request, facade, **kwargs):
+    active_ws = _get_active_workspace_name(facade)
+    context = _build_context(
+        facade,
+        selected_datasource=DEFAULT_DATASOURCE,
+        selected_visualizer=DEFAULT_VISUALIZER,
+        workspace_name=active_ws or DEFAULT_WORKSPACE,
+        selected_workspace=active_ws,
+        path="",
+        id_key="@id",
+        ref_key="@ref",
+        treat_string_refs_as_ids=True,
+        directed=False,
+        main_view_html=_render_main_view(facade, DEFAULT_VISUALIZER) if facade.get_active_graph() else ""
+    )
+    context.update(kwargs)
+    return render(request, "home.html", context)
 
 
 def home(request):
@@ -189,14 +209,7 @@ def home(request):
             "error_message": "PlatformFacade is not available.",
             "success_message": "",
             "default_paths": {k: str(v) for k, v in DEFAULT_PATHS.items()},
-            "graph_json": json.dumps({
-                "nodes": [],
-                "links": [],
-                "directed": False,
-                "cyclic": False,
-                "node_count": 0,
-                "edge_count": 0,
-            }),
+            "graph_json": json.dumps(_serialize_graph(None)),
         })
 
     facade = _get_facade()
@@ -254,12 +267,14 @@ def home(request):
                     directed=directed,
                 )
                 success_message = f"Workspace '{workspace_name}' created and activated."
+                selected_workspace = workspace_name
 
             elif action == "switch":
                 if not selected_workspace:
                     raise ValueError("Select a workspace to switch to.")
                 facade.switch_workspace(selected_workspace)
                 success_message = f"Switched to workspace '{selected_workspace}'."
+                selected_workspace = _get_active_workspace_name(facade)
 
             elif action == "delete":
                 if not selected_workspace:
@@ -270,9 +285,10 @@ def home(request):
                 names = _get_workspace_names(facade)
                 if names:
                     facade.switch_workspace(names[0])
+                selected_workspace = _get_active_workspace_name(facade)
 
             else:
-                raise ValueError("Unknown action.")
+                pass # Unhandled action could be from the filter/search forms
 
             if facade.get_active_graph() is not None:
                 main_view_html = _render_main_view(facade, selected_visualizer)
@@ -288,8 +304,9 @@ def home(request):
             error_message = str(e)
 
     current_active = _get_active_workspace_name(facade)
-    if not selected_workspace:
+    if current_active:
         selected_workspace = current_active
+        workspace_name = current_active
 
     context = _build_context(
         facade,
@@ -443,3 +460,153 @@ def visualize_graph(request):
         return JsonResponse({"error": str(e)}, status=400)
     except Exception as e:
         return JsonResponse({"error": f"Failed to visualize graph: {e}"}, status=500)
+
+
+@csrf_exempt
+@require_POST
+def apply_search(request):
+    if not _facade_available:
+        return JsonResponse({"error": "Platform not available"}, status=503)
+
+    if request.content_type and "application/json" not in request.content_type:
+        search_text = request.POST.get("search_text", "").strip()
+        filter_field = ""
+        filter_operator = request.POST.get("filter_operator", ">").strip() or ">"
+        filter_value = ""
+
+        try:
+            facade = _get_facade()
+            facade.reset_graph()
+            if search_text:
+                facade.search(search_text)
+            return _render_home_with_state(
+                request,
+                facade,
+                search_text=search_text,
+                filter_field=filter_field,
+                filter_operator=filter_operator,
+                filter_value=filter_value,
+                ui_status="Search applied.",
+            )
+        except ValueError as e:
+            return _render_home_with_state(
+                request,
+                _get_facade(),
+                search_text=search_text,
+                filter_field=filter_field,
+                filter_operator=filter_operator,
+                filter_value=filter_value,
+                ui_status=f"Error: {e}",
+            )
+
+    try:
+        body  = json.loads(request.body)
+        query = body.get("query", "").strip()
+        if not query:
+            return JsonResponse({"error": "query is required"}, status=400)
+        facade = _get_facade()
+        facade.search(query)
+        graph = facade.get_active_graph()
+        return JsonResponse(_serialize_graph(graph))
+    except ValueError as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+
+@csrf_exempt
+@require_POST
+def apply_filter(request):
+    if not _facade_available:
+        return JsonResponse({"error": "Platform not available"}, status=503)
+
+    if request.content_type and "application/json" not in request.content_type:
+        search_text = request.POST.get("search_text", "").strip()
+        field = request.POST.get("filter_field", "").strip()
+        operator = request.POST.get("filter_operator", ">").strip() or ">"
+        value = request.POST.get("filter_value", "").strip()
+
+        try:
+            facade = _get_facade()
+            facade.reset_graph()
+            if field and value:
+                facade.filter(f"{field} {operator} {value}")
+                status = "Filter applied."
+            elif field or value:
+                status = "Filter requires both Field and Value. Showing reset result."
+            else:
+                status = "Graph reset."
+
+            return _render_home_with_state(
+                request,
+                facade,
+                search_text=search_text,
+                filter_field=field,
+                filter_operator=operator,
+                filter_value=value,
+                ui_status=status,
+            )
+        except ValueError as e:
+            return _render_home_with_state(
+                request,
+                _get_facade(),
+                search_text=search_text,
+                filter_field=field,
+                filter_operator=operator,
+                filter_value=value,
+                ui_status=f"Error: {e}",
+            )
+
+    try:
+        body     = json.loads(request.body)
+        field    = body.get("field",    "").strip()
+        operator = body.get("operator", "").strip()
+        value    = body.get("value",    "").strip()
+        if not field or not operator or not value:
+            return JsonResponse(
+                {"error": "field, operator and value are all required"}, status=400)
+        facade = _get_facade()
+        facade.filter(f"{field} {operator} {value}")
+        graph = facade.get_active_graph()
+        return JsonResponse(_serialize_graph(graph))
+    except ValueError as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+
+@csrf_exempt
+@require_POST
+def reset_graph(request):
+    if not _facade_available:
+        return JsonResponse({"error": "Platform not available"}, status=503)
+
+    if request.content_type and "application/json" not in request.content_type:
+        try:
+            facade = _get_facade()
+            try:
+                facade.reset_graph()
+            except ValueError:
+                pass
+            return _render_home_with_state(
+                request,
+                facade,
+                search_text="",
+                filter_field="",
+                filter_operator=">",
+                filter_value="",
+                ui_status="Graph reset.",
+            )
+        except ValueError as e:
+            return _render_home_with_state(
+                request,
+                _get_facade(),
+                ui_status=f"Error: {e}",
+            )
+
+    try:
+        facade = _get_facade()
+        try:
+            facade.reset_graph()
+        except ValueError:
+            pass
+        graph = facade.get_active_graph()
+        return JsonResponse(_serialize_graph(graph))
+    except ValueError as e:
+        return JsonResponse({"error": str(e)}, status=400)
