@@ -49,6 +49,12 @@ python -m tests.test_simple_visualizer
 
 echo.
 echo ================================
+echo Running Workspace Manager tests...
+echo ================================
+python -m tests.test_workspace_manager
+
+echo.
+echo ================================
 echo Done!
 echo ================================
 pause
