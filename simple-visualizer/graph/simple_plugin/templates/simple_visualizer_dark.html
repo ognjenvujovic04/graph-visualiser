@@ -35,6 +35,39 @@
         fill: #333;
         text-anchor: middle;
     }
+
+    #node-tooltip {
+        position: absolute;
+        padding: 10px;
+        background: rgba(40, 40, 40, 0.95);
+        border: 1px solid #555;
+        border-radius: 4px;
+        color: #fff;
+        font-family: monospace;
+        font-size: 12px;
+        pointer-events: none;
+        display: none;
+        z-index: 1000;
+        max-width: 300px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+    }
+
+    #node-tooltip .tooltip-title {
+        font-weight: bold;
+        margin-bottom: 6px;
+        color: #ff8c00;
+        border-bottom: 1px solid #555;
+        padding-bottom: 4px;
+    }
+
+    #node-tooltip .tooltip-item {
+        margin: 4px 0;
+    }
+
+    #node-tooltip .tooltip-key {
+        color: #5b8fa8;
+        font-weight: bold;
+    }
 </style>
 
 <script id="nodes-data" type="application/json">__NODES_JSON__</script>
@@ -112,16 +145,41 @@
             .attr("dy", 26)
             .text(function (d) { return d.id; });
 
-        function selectNode(id) {
-            selectedNodeId = id;
-            node
-                .style("fill", function (d) { return d.id === id ? "#ff8c00" : "#5b8fa8"; })
-                .attr("r", function (d) { return d.id === id ? 18 : 14; });
-        }
+        var tooltip = d3.select("body").append("div")
+            .attr("id", "node-tooltip");
 
-        node.on("click", function (event, d) {
-            event.stopPropagation();
-            selectNode(d.id);
+        node.on("mouseover", function (event, d) {
+            d3.select(this)
+                .style("fill", "#ff8c00")
+                .attr("r", 18);
+
+            var html = '<div class="tooltip-title">Node: ' + d.id + '</div>';
+            if (d.data && Object.keys(d.data).length > 0) {
+                for (var key in d.data) {
+                    html += '<div class="tooltip-item"><span class="tooltip-key">' + key + ':</span> ' + d.data[key] + '</div>';
+                }
+            } else {
+                html += '<div class="tooltip-item">No attributes</div>';
+            }
+
+            tooltip.html(html)
+                .style("display", "block")
+                .style("left", (event.pageX + 15) + "px")
+                .style("top", (event.pageY - 10) + "px");
+        });
+
+        node.on("mouseout", function (event, d) {
+            d3.select(this)
+                .style("fill", "#5b8fa8")
+                .attr("r", 14);
+
+            tooltip.style("display", "none");
+        });
+
+        node.on("mousemove", function (event) {
+            tooltip
+                .style("left", (event.pageX + 15) + "px")
+                .style("top", (event.pageY - 10) + "px");
         });
 
         function ticked() {
