@@ -9,7 +9,7 @@
 <script>
     const INITIAL_GRAPH = JSON.parse(document.getElementById("initial-graph-data").textContent || "{}");
     const API = {
-        load: "{% url 'load_file' %}",  
+        load: "{% url 'load_file' %}",
         visualize: "{% url 'visualize_graph' %}",
     };
 </script>
@@ -32,7 +32,7 @@
         <div class="alert alert-success">{{ success_message }}</div>
     {% endif %}
 
-    <form method="post" class="load-graph-form">
+    <form method="post" action="{% url 'home' %}" class="load-graph-form">
         {% csrf_token %}
         <input type="hidden" name="action" value="create">
 
@@ -95,7 +95,7 @@
 <section class="card card-gap">
     <h2 class="section-title">Workspace Management</h2>
 
-    <form method="post" class="load-graph-form">
+    <form method="post" action="{% url 'home' %}" class="load-graph-form">
         {% csrf_token %}
 
         <div class="load-grid">

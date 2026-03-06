@@ -55,12 +55,12 @@ def _serialize_graph(graph) -> dict:
         }
         for n in graph.nodes
     ]
-    
+
     edges = [
         {
-            "id": e.id, 
-            "source": e.source.id, 
-            "target": e.target.id, 
+            "id": e.id,
+            "source": e.source.id,
+            "target": e.target.id,
             "label": getattr(e, "label", "")
         }
         for e in graph.edges
@@ -69,7 +69,7 @@ def _serialize_graph(graph) -> dict:
     return {
         "nodes": nodes,
         "edges": edges,
-        "links": edges,  
+        "links": edges,
         "directed": graph.directed,
         "cyclic": graph.cyclic,
         "node_count": len(graph.nodes),
@@ -171,18 +171,19 @@ def _build_context(
 
 def _render_home_with_state(request, facade, **kwargs):
     active_ws = _get_active_workspace_name(facade)
+
     context = _build_context(
         facade,
         selected_datasource=DEFAULT_DATASOURCE,
         selected_visualizer=DEFAULT_VISUALIZER,
-        workspace_name=active_ws or DEFAULT_WORKSPACE,
+        workspace_name="",
         selected_workspace=active_ws,
-        path="",
+        path=str(DEFAULT_PATHS.get(DEFAULT_DATASOURCE, DATA_DIR / "sample.json")),
         id_key="@id",
         ref_key="@ref",
         treat_string_refs_as_ids=True,
         directed=False,
-        main_view_html=_render_main_view(facade, DEFAULT_VISUALIZER) if facade.get_active_graph() else ""
+        main_view_html=_render_main_view(facade, DEFAULT_VISUALIZER) if facade.get_active_graph() else "",
     )
     context.update(kwargs)
     return render(request, "home.html", context)
@@ -199,7 +200,7 @@ def home(request):
             "selected_workspace": "",
             "selected_datasource": DEFAULT_DATASOURCE,
             "selected_visualizer": DEFAULT_VISUALIZER,
-            "workspace_name": DEFAULT_WORKSPACE,
+            "workspace_name": "",
             "path": str(DEFAULT_PATHS.get(DEFAULT_DATASOURCE, DATA_DIR / "sample.json")),
             "id_key": "@id",
             "ref_key": "@ref",
@@ -210,13 +211,18 @@ def home(request):
             "success_message": "",
             "default_paths": {k: str(v) for k, v in DEFAULT_PATHS.items()},
             "graph_json": json.dumps(_serialize_graph(None)),
+            "search_text": "",
+            "filter_field": "",
+            "filter_operator": ">",
+            "filter_value": "",
+            "ui_status": "",
         })
 
     facade = _get_facade()
 
     selected_datasource = DEFAULT_DATASOURCE
     selected_visualizer = DEFAULT_VISUALIZER
-    workspace_name = DEFAULT_WORKSPACE
+    workspace_name = ""
     selected_workspace = ""
     path = str(DEFAULT_PATHS.get(DEFAULT_DATASOURCE, DATA_DIR / "sample.json"))
     id_key = "@id"
@@ -239,6 +245,10 @@ def home(request):
                 treat_string_refs_as_ids=True,
                 directed=False,
             )
+            try:
+                facade.switch_workspace(DEFAULT_WORKSPACE)
+            except Exception:
+                pass
         except Exception as e:
             error_message = str(e)
 
@@ -247,7 +257,7 @@ def home(request):
 
         selected_datasource = request.POST.get("plugin_id", DEFAULT_DATASOURCE).strip().lower()
         selected_visualizer = request.POST.get("visualizer_id", DEFAULT_VISUALIZER).strip().lower()
-        workspace_name = request.POST.get("workspace_name", DEFAULT_WORKSPACE).strip() or DEFAULT_WORKSPACE
+        workspace_name = request.POST.get("workspace_name", "").strip()
         selected_workspace = request.POST.get("selected_workspace", "").strip()
         path = request.POST.get("path", "").strip()
         id_key = request.POST.get("id_key", "@id").strip() or "@id"
@@ -257,8 +267,10 @@ def home(request):
 
         try:
             if action == "create":
+                final_workspace_name = workspace_name or DEFAULT_WORKSPACE
+
                 facade.create_workspace(
-                    name=workspace_name,
+                    name=final_workspace_name,
                     plugin_id=selected_datasource,
                     path=path,
                     id_key=id_key,
@@ -266,8 +278,12 @@ def home(request):
                     treat_string_refs_as_ids=treat_string_refs_as_ids,
                     directed=directed,
                 )
-                success_message = f"Workspace '{workspace_name}' created and activated."
-                selected_workspace = workspace_name
+
+                # KLJUCNA IZMENA:
+                facade.switch_workspace(final_workspace_name)
+
+                success_message = f"Workspace '{final_workspace_name}' created and activated."
+                selected_workspace = _get_active_workspace_name(facade)
 
             elif action == "switch":
                 if not selected_workspace:
@@ -288,7 +304,7 @@ def home(request):
                 selected_workspace = _get_active_workspace_name(facade)
 
             else:
-                pass # Unhandled action could be from the filter/search forms
+                pass
 
             if facade.get_active_graph() is not None:
                 main_view_html = _render_main_view(facade, selected_visualizer)
@@ -306,7 +322,6 @@ def home(request):
     current_active = _get_active_workspace_name(facade)
     if current_active:
         selected_workspace = current_active
-        workspace_name = current_active
 
     context = _build_context(
         facade,
@@ -383,7 +398,7 @@ def load_file(request):
                 status=400,
             )
 
-        workspace_name = request.POST.get("workspace_name", DEFAULT_WORKSPACE).strip() or DEFAULT_WORKSPACE
+        workspace_name = request.POST.get("workspace_name", "").strip() or DEFAULT_WORKSPACE
         visualizer_id = request.POST.get("visualizer_id", DEFAULT_VISUALIZER).strip().lower() or DEFAULT_VISUALIZER
 
         id_key = request.POST.get("id_key", "@id").strip() or "@id"
@@ -400,6 +415,11 @@ def load_file(request):
             treat_string_refs_as_ids=treat_string_refs_as_ids,
             directed=directed,
         )
+
+        try:
+            facade.switch_workspace(workspace_name)
+        except Exception:
+            pass
 
         graph = facade.get_active_graph()
         rendered = ""
@@ -500,7 +520,7 @@ def apply_search(request):
             )
 
     try:
-        body  = json.loads(request.body)
+        body = json.loads(request.body)
         query = body.get("query", "").strip()
         if not query:
             return JsonResponse({"error": "query is required"}, status=400)
@@ -556,13 +576,14 @@ def apply_filter(request):
             )
 
     try:
-        body     = json.loads(request.body)
-        field    = body.get("field",    "").strip()
+        body = json.loads(request.body)
+        field = body.get("field", "").strip()
         operator = body.get("operator", "").strip()
-        value    = body.get("value",    "").strip()
+        value = body.get("value", "").strip()
         if not field or not operator or not value:
             return JsonResponse(
-                {"error": "field, operator and value are all required"}, status=400)
+                {"error": "field, operator and value are all required"}, status=400
+            )
         facade = _get_facade()
         facade.filter(f"{field} {operator} {value}")
         graph = facade.get_active_graph()

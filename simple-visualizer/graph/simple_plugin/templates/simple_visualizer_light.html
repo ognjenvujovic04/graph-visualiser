@@ -80,25 +80,29 @@
 
 <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <script type="text/javascript">
-    // ════════════════════════════════════════════════════════════════
-    // Standard Event Emission Protocol
-    // ════════════════════════════════════════════════════════════════
     window.emitVisualizerEvent = function(type, data) {
-        if (window.parent !== window) {
-            window.parent.postMessage({ 
-                type: type, 
-                data: data || {} 
-            }, '*');
+        var payload = {
+            type: type,
+            data: data || {}
+        };
+
+        try {
+            window.dispatchEvent(new CustomEvent("visualizer-event", {
+                detail: payload
+            }));
+        } catch (e) {}
+
+        if (window.parent && window.parent !== window) {
+            window.parent.postMessage(payload, "*");
         }
     };
-    
+
     function render() {
         var graphNodes = JSON.parse(document.getElementById("nodes-data").textContent);
         var graphLinks = JSON.parse(document.getElementById("edges-data").textContent);
         var nodeRadius = __NODE_RADIUS__;
         var selectedNodeId = null;
 
-        // Deep copy nodes to avoid mutation
         graphNodes = graphNodes.map(function (n) { return Object.assign({}, n); });
         graphLinks = graphLinks.map(function (e) { return Object.assign({}, e); });
 
@@ -118,8 +122,8 @@
             .scaleExtent([0.05, 8])
             .on("zoom", function (event) {
                 g.attr("transform", event.transform);
-                // Emit viewport change event using standard protocol
-                emitVisualizerEvent('viewport-change', {
+
+                emitVisualizerEvent("viewport-change", {
                     transform: {
                         x: event.transform.x,
                         y: event.transform.y,
@@ -129,6 +133,7 @@
                     height: height
                 });
             });
+
         svg.call(zoomBehavior);
 
         svg.append("defs").append("marker")
@@ -173,13 +178,24 @@
         var tooltip = d3.select("body").append("div")
             .attr("id", "node-tooltip");
 
-        node.on("mouseover", function (event, d) {
-            d3.select(this)
-                .style("fill", "#f4b942")
-                .attr("r", 18);
+        function applySelectedVisualState() {
+            node.each(function (d) {
+                var isSelected = d.id === selectedNodeId;
+                d3.select(this)
+                    .classed("selected", isSelected)
+                    .attr("fill", isSelected ? "#f4b942" : "#157a6e")
+                    .attr("r", isSelected ? 18 : 14);
+            });
+        }
 
-            // Emit node hover event using standard protocol
-            emitVisualizerEvent('node-hover', { nodeId: d.id });
+        node.on("mouseover", function (event, d) {
+            if (selectedNodeId !== d.id) {
+                d3.select(this)
+                    .attr("fill", "#f4b942")
+                    .attr("r", 18);
+            }
+
+            emitVisualizerEvent("node-hover", { nodeId: d.id });
 
             var html = '<div class="tooltip-title">Node: ' + d.id + '</div>';
             if (d.data && Object.keys(d.data).length > 0) {
@@ -196,14 +212,23 @@
                 .style("top", (event.pageY - 10) + "px");
         });
 
+        node.on("click", function (event, d) {
+            selectedNodeId = d.id;
+            applySelectedVisualState();
+
+            emitVisualizerEvent("node-select", {
+                nodeId: d.id
+            });
+        });
+
         node.on("mouseout", function (event, d) {
-            d3.select(this)
-                .style("fill", "#157a6e")
-                .attr("r", 14);
+            if (selectedNodeId !== d.id) {
+                d3.select(this)
+                    .attr("fill", "#157a6e")
+                    .attr("r", 14);
+            }
 
-            // Emit node hover end event using standard protocol
-            emitVisualizerEvent('node-hover-end', { nodeId: d.id });
-
+            emitVisualizerEvent("node-hover-end", { nodeId: d.id });
             tooltip.style("display", "none");
         });
 
@@ -235,9 +260,10 @@
         var positionEmitIntervalTicks = 15;
 
         function emitCurrentPositions(eventType) {
-            var positions = graphNodes.map(function(n) {
+            var positions = graphNodes.map(function (n) {
                 return { id: n.id, x: n.x, y: n.y };
             });
+
             emitVisualizerEvent(eventType, {
                 positions: positions,
                 links: graphLinks
@@ -248,15 +274,15 @@
             .force("link", d3.forceLink(graphLinks).id(function (d) { return d.id; }).distance(linkDistance))
             .force("charge", d3.forceManyBody().strength(chargeStrength))
             .force("center", d3.forceCenter(width / 2, height / 2))
-            .on("tick", function() {
+            .on("tick", function () {
                 ticked();
                 tickCounter++;
                 if (tickCounter % positionEmitIntervalTicks === 0) {
-                    emitCurrentPositions('visualizer-positions');
+                    emitCurrentPositions("visualizer-positions");
                 }
             })
-            .on("end", function() {
-                emitCurrentPositions('layout-complete');
+            .on("end", function () {
+                emitCurrentPositions("layout-complete");
             });
 
         node.call(d3.drag()
@@ -276,8 +302,12 @@
             })
         );
 
-        // Listen for messages from parent (standardized event protocol)
-        window.addEventListener('message', function(event) {
+        emitVisualizerEvent("graph-ready", {
+            width: width,
+            height: height
+        });
+
+        window.addEventListener("message", function (event) {
             if (!event.data || !event.data.type || !event.data.data) {
                 return;
             }
@@ -285,19 +315,19 @@
             var type = event.data.type;
             var data = event.data.data;
 
-            if (type === 'node-hover') {
-                node.each(function(d) {
-                    if (d.id === data.nodeId) {
+            if (type === "node-hover") {
+                node.each(function (d) {
+                    if (d.id === data.nodeId && d.id !== selectedNodeId) {
                         d3.select(this)
-                            .style("fill", "#f4b942")
+                            .attr("fill", "#f4b942")
                             .attr("r", 18);
                     }
                 });
-            } else if (type === 'node-hover-end') {
-                node.each(function(d) {
-                    if (d.id === data.nodeId) {
+            } else if (type === "node-hover-end") {
+                node.each(function (d) {
+                    if (d.id === data.nodeId && d.id !== selectedNodeId) {
                         d3.select(this)
-                            .style("fill", "#157a6e")
+                            .attr("fill", "#157a6e")
                             .attr("r", 14);
                     }
                 });
