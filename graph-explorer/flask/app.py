@@ -148,6 +148,43 @@ def api_filter():
         return jsonify({'ok': False, 'error': str(e)}), 400
 
 
+@app.route('/api/search', methods=['POST'])
+def api_search():
+    try:
+        body = request.get_json()
+        searches = body.get('searches', [])
+
+        if not searches:
+            return jsonify({'ok': False, 'error': 'No search queries provided'}), 400
+
+        graph = facade.get_active_graph()
+        if graph is None:
+            return jsonify({'ok': False, 'error': 'No graph loaded'}), 400
+
+        # Apply searches through facade on current active graph.
+        for query in searches:
+            if not str(query).strip():
+                continue
+            facade.search(str(query).strip())
+
+        searched_graph = facade.get_active_graph()
+
+        nodes = [{'id': n.id, 'attributes': {k: str(v.value) for k, v in n.attributes.items()}}
+                 for n in searched_graph.nodes]
+        edges = [{'id': e.id, 'source': e.source.id, 'target': e.target.id, 'label': e.label}
+                 for e in searched_graph.edges]
+
+        return jsonify({
+            'ok': True,
+            'nodes': nodes,
+            'edges': edges,
+            'nodes_count': len(searched_graph.nodes),
+            'edges_count': len(searched_graph.edges),
+        })
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 400
+
+
 @app.route('/api/reset', methods=['POST'])
 def api_reset():
     try:

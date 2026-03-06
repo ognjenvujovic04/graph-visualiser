@@ -85,6 +85,23 @@
                 <button class="view-tab" onclick="setVisualizer('block',  this)">Block</button>
             </div>
 
+            {# Search panel #}
+            <div class="sidebar-section">
+                <div class="sidebar-header">Search</div>
+                <div class="search-input-row">
+                    <input type="text" id="search-input-query" class="search-value vsc-input"
+                        placeholder="attribute name or value contains...">
+                </div>
+
+                <div id="search-tags-container"></div>
+
+                <div class="search-buttons-row">
+                    <button class="vsc-btn" onclick="addSearch()">Add Search</button>
+                    <button class="vsc-btn" onclick="resetSearches()" style="background-color: #999;">Reset</button>
+                </div>
+                <p id="search-status" class="load-status"></p>
+            </div>
+
             {# Filter panel #}
             <div class="sidebar-section">
                 <div class="sidebar-header">Filters</div>
@@ -132,6 +149,21 @@
     let treeView = null;
     let birdView = null;
 
+    function resetOperationsUIState() {
+        addedFilters = [];
+        addedSearches = [];
+        renderFilterTags();
+        renderSearchTags();
+
+        document.getElementById('filter-input-attribute').value = '';
+        document.getElementById('filter-input-operator').value = '==';
+        document.getElementById('filter-input-value').value = '';
+        document.getElementById('search-input-query').value = '';
+
+        document.getElementById('filter-status').textContent = '';
+        document.getElementById('search-status').textContent = '';
+    }
+
     async function loadGraph() {
         const plugin = document.getElementById('plugin-select').value;
         const path = document.getElementById('file-path').value.trim();
@@ -148,8 +180,10 @@
             if (data.ok) {
                 graphLoaded = true;
                 graphStats = { nodes: data.nodes, edges: data.edges };
-                status.textContent = `✓ Loaded: ${data.nodes} nodes, ${data.edges} edges`;
-                status.style.color = 'green';
+                status.textContent = '';
+
+                // Loading new data starts from a clean operation state.
+                resetOperationsUIState();
 
                 // Fetch full graph data for bird view
                 try {
@@ -193,6 +227,8 @@
         frame.style.height = '100%';
         frame.style.border = '0';
         frame.style.display = 'block';
+        frame.style.overflow = 'hidden';
+        frame.setAttribute('scrolling', 'no');
         frame.srcdoc = html;
 
         canvas.appendChild(frame);
@@ -324,6 +360,7 @@
     // ── Filter Management ────────────────────────────────────────────────────
     let allAttributes = new Set();
     let addedFilters = []; // Array of {attribute, operator, value} objects
+    let addedSearches = []; // Array of search query strings
 
     function updateAttributeDropdowns() {
         // Fetch current graph to get all available attributes
@@ -379,16 +416,50 @@
         // Render filter tags
         renderFilterTags();
 
-        // Auto-apply filters after adding a new one
-        syncGraphWithFilters();
+        // Re-apply all operations in backend to keep graph state synchronized.
+        syncGraphWithOperations();
     }
 
     function removeFilter(index) {
         addedFilters.splice(index, 1);
         renderFilterTags();
 
-        // Auto-apply remaining filters after removing one
-        syncGraphWithFilters();
+        syncGraphWithOperations();
+    }
+
+    function addSearch() {
+        const query = document.getElementById('search-input-query').value.trim();
+        if (!query) {
+            alert('Please enter a search query');
+            return;
+        }
+
+        addedSearches.push(query);
+        document.getElementById('search-input-query').value = '';
+        renderSearchTags();
+        syncGraphWithOperations();
+    }
+
+    function removeSearch(index) {
+        addedSearches.splice(index, 1);
+        renderSearchTags();
+        syncGraphWithOperations();
+    }
+
+    function renderSearchTags() {
+        const container = document.getElementById('search-tags-container');
+
+        if (addedSearches.length === 0) {
+            container.innerHTML = '';
+            return;
+        }
+
+        container.innerHTML = addedSearches.map((query, index) => `
+            <div class="search-tag">
+                <span class="search-tag-text">contains \"${query}\"</span>
+                <button class="search-tag-remove" onclick="removeSearch(${index})" title="Remove search">×</button>
+            </div>
+        `).join('');
     }
 
     function renderFilterTags() {
@@ -429,8 +500,7 @@
 
             if (data.ok) {
                 graphStats = { nodes: data.nodes_count, edges: data.edges_count };
-                status.textContent = `Filtered: ${data.nodes_count} nodes, ${data.edges_count} edges`;
-                status.style.color = 'green';
+                status.textContent = '';
                 updateGraphStats();
 
                 // Update visualizer with filtered graph
@@ -451,17 +521,52 @@
         }
     }
 
-    async function syncGraphWithFilters() {
-        if (!graphLoaded) return;
-
-        if (addedFilters.length === 0) {
-            resetFiltersBackend();
+    async function applySearches() {
+        if (!graphLoaded) {
+            alert('Please load a graph first');
             return;
         }
 
-        const status = document.getElementById('filter-status');
-        status.textContent = 'Updating filters…';
+        if (addedSearches.length === 0) {
+            return;
+        }
+
+        const status = document.getElementById('search-status');
+        status.textContent = 'Searching…';
         status.style.color = '#999';
+
+        try {
+            const res = await fetch('/api/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ searches: addedSearches })
+            });
+            const data = await res.json();
+
+            if (!data.ok) {
+                status.textContent = `Error: ${data.error}`;
+                status.style.color = 'red';
+                throw new Error(data.error || 'Search failed');
+            }
+
+            graphStats = { nodes: data.nodes_count, edges: data.edges_count };
+            status.textContent = '';
+            updateGraphStats();
+
+            birdView.setGraphData(data.nodes, data.edges);
+            await renderVisualizer();
+            if (treeView) {
+                await treeView.refresh(graphLoaded);
+            }
+        } catch (e) {
+            status.textContent = `Error: ${e}`;
+            status.style.color = 'red';
+            throw e;
+        }
+    }
+
+    async function syncGraphWithOperations() {
+        if (!graphLoaded) return;
 
         try {
             const resetRes = await fetch('/api/reset', {
@@ -471,15 +576,44 @@
             });
             const resetData = await resetRes.json();
             if (!resetData.ok) {
-                status.textContent = `Error: ${resetData.error}`;
-                status.style.color = 'red';
+                document.getElementById('filter-status').textContent = `Error: ${resetData.error}`;
+                document.getElementById('filter-status').style.color = 'red';
+                document.getElementById('search-status').textContent = `Error: ${resetData.error}`;
+                document.getElementById('search-status').style.color = 'red';
                 return;
             }
 
-            await applyFilters();
+            graphStats = { nodes: resetData.nodes_count, edges: resetData.edges_count };
+            birdView.setGraphData(resetData.nodes, resetData.edges);
+            updateGraphStats();
+
+            if (addedFilters.length > 0) {
+                await applyFilters();
+            }
+            if (addedSearches.length > 0) {
+                await applySearches();
+            }
+
+            if (addedFilters.length === 0) {
+                document.getElementById('filter-status').textContent = '';
+            }
+            if (addedSearches.length === 0) {
+                document.getElementById('search-status').textContent = '';
+            }
+
+            updateAttributeDropdowns();
+
+            if (addedFilters.length === 0 && addedSearches.length === 0) {
+                await renderVisualizer();
+                if (treeView) {
+                    await treeView.refresh(graphLoaded);
+                }
+            }
         } catch (e) {
-            status.textContent = `Error: ${e}`;
-            status.style.color = 'red';
+            document.getElementById('filter-status').textContent = `Error: ${e}`;
+            document.getElementById('filter-status').style.color = 'red';
+            document.getElementById('search-status').textContent = `Error: ${e}`;
+            document.getElementById('search-status').style.color = 'red';
         }
     }
 
@@ -493,45 +627,14 @@
         document.getElementById('filter-input-operator').value = '==';
         document.getElementById('filter-input-value').value = '';
 
-        resetFiltersBackend();
+        syncGraphWithOperations();
     }
 
-    function resetFiltersBackend() {
-        const status = document.getElementById('filter-status');
-        status.textContent = 'Resetting…';
-        status.style.color = '#999';
-
-        // Call reset endpoint on backend
-        fetch('/api/reset', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({})
-        })
-            .then(res => res.json())
-            .then(data => {
-                if (data.ok) {
-                    graphStats = { nodes: data.nodes_count, edges: data.edges_count };
-                    status.textContent = `Reset: ${data.nodes_count} nodes, ${data.edges_count} edges`;
-                    status.style.color = 'green';
-                    updateGraphStats();
-
-                    // Update all views with reset graph
-                    birdView.setGraphData(data.nodes, data.edges);
-                    renderVisualizer();
-                    if (treeView) {
-                        treeView.refresh(graphLoaded);
-                    }
-                } else {
-                    status.textContent = `Error: ${data.error}`;
-                    status.style.color = 'red';
-                }
-            })
-            .catch(e => {
-                status.textContent = `Error: ${e}`;
-                status.style.color = 'red';
-            });
-
-        updateInputAttributeSelect();
+    function resetSearches() {
+        addedSearches = [];
+        renderSearchTags();
+        document.getElementById('search-input-query').value = '';
+        syncGraphWithOperations();
     }
 
     window.addEventListener('resize', () => {
@@ -539,6 +642,15 @@
 
     document.addEventListener('DOMContentLoaded', () => {
         renderTreeViewFromSnapshot();
+
+        const searchInput = document.getElementById('search-input-query');
+        if (searchInput) {
+            searchInput.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    addSearch();
+                }
+            });
+        }
     });
 
     // Listen for messages from the visualizer iframe
