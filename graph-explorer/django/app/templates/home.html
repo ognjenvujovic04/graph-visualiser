@@ -2,6 +2,18 @@
 
 {% block title %}Home | Graph Explorer{% endblock %}
 
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<script type="application/json" id="initial-graph-data">{{ graph_json|default:"{}"|safe }}</script>
+<script>
+    const INITIAL_GRAPH = JSON.parse(document.getElementById("initial-graph-data").textContent || "{}");
+    const API = {
+        load: "{% url 'load_file' %}",
+        visualize: "{% url 'visualize_graph' %}",
+    };
+</script>
+{% endblock %}
+
 {% block content %}
 <section class="card">
     <p class="home-kicker">Graph Workspace</p>
@@ -11,8 +23,8 @@
     </p>
 
     <div class="mode-switch" role="group" aria-label="View mode">
-        <button type="button" class="mode-button is-active">Simple View</button>
-        <button type="button" class="mode-button">Block View</button>
+        <button type="button" class="mode-button is-active" data-visualizer="simple">Simple View</button>
+        <button type="button" class="mode-button" data-visualizer="block">Block View</button>
     </div>
 </section>
 
@@ -21,29 +33,52 @@
 
     <div class="global-filter-bar">
         <p class="filter-label">Global Filter</p>
+        <form method="post" action="{% url 'apply_filter' %}">
+            {% csrf_token %}
+        <div class="filter-row filter-row-search" aria-label="Global search expression">
+            <div class="filter-field filter-field-wide">
+                <label class="filter-label" for="search-text">Search</label>
+                <div class="search-inline-row">
+                    <input id="search-text" name="search_text" class="filter-input" type="text" value="{{ search_text|default:'' }}" placeholder="Search by id or attributes (e.g. ops)">
+                    <button id="search-controls" class="action-button action-button-inline" type="submit" formaction="{% url 'apply_search' %}">Search</button>
+                </div>
+            </div>
+
+            <div class="filter-field">
+                <label class="filter-label" for="graph-file">Graph File (JSON)</label>
+                <input id="graph-file" class="filter-input" type="file" accept=".json,.csv,.xml">
+            </div>
+        </div>
+
         <div class="filter-row" aria-label="Global filter expression">
             <div class="filter-field">
                 <label class="filter-label" for="filter-field">Field</label>
-                <input id="filter-field" class="filter-input" type="text" value="age" placeholder="e.g. age">
+                <input id="filter-field" name="filter_field" class="filter-input" type="text" value="{{ filter_field|default:'' }}" placeholder="e.g. age">
             </div>
 
             <div class="filter-field filter-field-operator">
                 <label class="filter-label" for="filter-operator">Operator</label>
-                <select id="filter-operator" class="filter-input">
-                    <option value=">">&gt;</option>
-                    <option value=">=">&gt;=</option>
-                    <option value="=">=</option>
-                    <option value="<">&lt;</option>
-                    <option value="<=">&lt;=</option>
-                    <option value="!=">!=</option>
+                <select id="filter-operator" name="filter_operator" class="filter-input">
+                    <option value=">" {% if filter_operator == '>' %}selected{% endif %}>&gt;</option>
+                    <option value=">=" {% if filter_operator == '>=' %}selected{% endif %}>&gt;=</option>
+                    <option value="==" {% if filter_operator == '==' %}selected{% endif %}>==</option>
+                    <option value="<" {% if filter_operator == '<' %}selected{% endif %}>&lt;</option>
+                    <option value="<=" {% if filter_operator == '<=' %}selected{% endif %}>&lt;=</option>
+                    <option value="!=" {% if filter_operator == '!=' %}selected{% endif %}>!=</option>
                 </select>
             </div>
 
             <div class="filter-field">
                 <label class="filter-label" for="filter-value">Value</label>
-                <input id="filter-value" class="filter-input" type="text" placeholder="e.g. 20">
+                <input id="filter-value" name="filter_value" class="filter-input" type="text" value="{{ filter_value|default:'' }}" placeholder="e.g. 20">
             </div>
         </div>
+
+        <div class="filter-actions-row" aria-label="Filter and reset actions">
+            <button id="apply-controls" class="action-button" type="submit" formaction="{% url 'apply_filter' %}">Filter</button>
+            <button id="reset-controls" class="action-button action-button-secondary" type="submit" formaction="{% url 'reset_graph' %}">Reset</button>
+        </div>
+        </form>
     </div>
 
     <div class="workspace-grid">
@@ -54,8 +89,7 @@
                     <span class="panel-caption">Hierarchy</span>
                 </header>
 
-                <div class="view-canvas" aria-label="Tree view D3 container">
-                    Tree D3 placeholder
+                <div class="view-canvas" id="tree-canvas" aria-label="Tree view D3 container">
                 </div>
             </article>
 
@@ -65,8 +99,7 @@
                     <span class="panel-caption">Overview</span>
                 </header>
 
-                <div class="view-canvas" aria-label="Bird view D3 container">
-                    Bird D3 placeholder
+                <div class="view-canvas" id="bird-canvas" aria-label="Bird view D3 container">
                 </div>
             </article>
         </div>
@@ -77,10 +110,14 @@
                 <span class="panel-caption">Detailed</span>
             </header>
 
-            <div class="view-canvas view-canvas-main" aria-label="Main view D3 container">
-                Main D3 placeholder
+            <div class="view-canvas view-canvas-main" id="main-canvas" aria-label="Main view D3 container">
             </div>
         </article>
     </div>
 </section>
+{% endblock %}
+
+{% block extra_scripts %}
+{% load static %}
+<script src="{% static 'graph-sync.js' %}"></script>
 {% endblock %}
