@@ -48,7 +48,7 @@ def build_chain(n: int, add_cycles: bool = True, cycle_every: int = 25):
 
 def main():
     # defaulti
-    out_path = "big_250.json"
+    out_path = "data/big_250.json"
     n = 250
     add_cycles = True
 

@@ -12,3 +12,6 @@ simple = "graph.simple_plugin.visualizer:SimpleVisualizer"
 
 [tool.setuptools]
 provides = ["graph"]
+
+[tool.setuptools.package-data]
+"graph.simple_plugin" = ["templates/*.html"]
