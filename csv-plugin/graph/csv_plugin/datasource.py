@@ -11,10 +11,12 @@ class CSVDataSource(DataSourcePlugin):
         return "CSV datasource"
     def identifier(self) -> str:
         return "csv"
+    
     def load(self, **kwargs) -> Graph:
-        path= kwargs['path']
+        path = kwargs["path"]
         if not path:
             raise ValueError("Missing path")
-        directed = kwargs.get("directed", "y").lower() == "y"
+
+        directed = kwargs.get("directed", False)
 
         return self.__parser.parse(path, directed=directed)
