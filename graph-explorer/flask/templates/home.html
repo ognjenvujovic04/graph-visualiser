@@ -148,6 +148,182 @@
     let graphStats = null;
     let treeView = null;
     let birdView = null;
+    let currentWorkspace = null;
+
+    // ── Workspace Management ────────────────────────────────────────────────────
+
+    async function loadWorkspaces() {
+        try {
+            const res = await fetch('/api/workspaces');
+            const data = await res.json();
+
+            if (data.ok) {
+                renderWorkspaceTabs(data.workspaces);
+
+                // Find and set active workspace
+                const activeWs = data.workspaces.find(ws => ws.is_active);
+                if (activeWs) {
+                    currentWorkspace = activeWs.name;
+                    graphLoaded = true;
+                    graphStats = { nodes: activeWs.nodes, edges: activeWs.edges };
+                    updateGraphStats();
+                    await renderVisualizer();
+                    await treeView.refresh(graphLoaded);
+                }
+            }
+        } catch (e) {
+            console.error('Failed to load workspaces:', e);
+        }
+    }
+
+    function renderWorkspaceTabs(workspaces) {
+        const container = document.getElementById('workspace-tabs-container');
+
+        const tabsHtml = workspaces.map(ws => `
+            <div class="workspace-tab ${ws.is_active ? 'active' : ''}" 
+                 onclick="switchWorkspace('${ws.name}')"
+                 ondblclick="renameWorkspace('${ws.name}')"
+                 title="${ws.name} (${ws.nodes} nodes, ${ws.edges} edges)">
+                <span class="workspace-tab-label">${ws.name}</span>
+                <span class="workspace-tab-close" onclick="event.stopPropagation(); closeWorkspace('${ws.name}')">&times;</span>
+            </div>
+        `).join('');
+
+        const addButton = '<button class="workspace-add-btn" onclick="addNewWorkspace()" title="Add workspace">+</button>';
+
+        container.innerHTML = tabsHtml + addButton;
+    }
+
+    async function switchWorkspace(name) {
+        if (name === currentWorkspace) return;
+
+        try {
+            const res = await fetch('/api/workspaces/switch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name })
+            });
+            const data = await res.json();
+
+            if (data.ok) {
+                currentWorkspace = name;
+                graphLoaded = true;
+                graphStats = { nodes: data.nodes, edges: data.edges };
+
+                // Update UI state
+                resetOperationsUIState();
+                updateGraphStats();
+                await renderVisualizer();
+                await treeView.refresh(graphLoaded);
+                await loadWorkspaces(); // Refresh tabs
+            } else {
+                console.error('Failed to switch workspace:', data.error);
+            }
+        } catch (e) {
+            console.error('Error switching workspace:', e);
+        }
+    }
+
+    async function renameWorkspace(oldName) {
+        const newName = prompt(`Rename workspace "${oldName}" to:`, oldName);
+        if (!newName || newName === oldName) return;
+
+        try {
+            const res = await fetch('/api/workspaces/rename', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ old_name: oldName, new_name: newName })
+            });
+            const data = await res.json();
+
+            if (data.ok) {
+                if (currentWorkspace === oldName) {
+                    currentWorkspace = newName;
+                }
+                await loadWorkspaces();
+            } else {
+                alert('Failed to rename workspace: ' + data.error);
+            }
+        } catch (e) {
+            alert('Error renaming workspace: ' + e);
+        }
+    }
+
+    async function closeWorkspace(name) {
+        if (!confirm(`Close workspace "${name}"?`)) return;
+
+        try {
+            const res = await fetch('/api/workspaces/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name })
+            });
+            const data = await res.json();
+
+            if (data.ok) {
+                if (name === currentWorkspace) {
+                    // Workspace was closed, update state
+                    if (data.nodes > 0) {
+                        graphLoaded = true;
+                        graphStats = { nodes: data.nodes, edges: data.edges };
+                        resetOperationsUIState();
+                        updateGraphStats();
+                        await renderVisualizer();
+                        await treeView.refresh(graphLoaded);
+                    } else {
+                        graphLoaded = false;
+                        graphStats = null;
+                        currentWorkspace = null;
+                        updateGraphStats();
+                        document.getElementById('main-canvas').innerHTML = '';
+                        await treeView.refresh(false);
+                    }
+                }
+                await loadWorkspaces();
+            } else {
+                alert('Failed to close workspace: ' + data.error);
+            }
+        } catch (e) {
+            alert('Error closing workspace: ' + e);
+        }
+    }
+
+    async function addNewWorkspace() {
+        try {
+            const res = await fetch('/api/workspaces/create', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            });
+            const data = await res.json();
+
+            if (data.ok) {
+                currentWorkspace = data.workspace_name;
+                graphLoaded = true;
+                graphStats = { nodes: 0, edges: 0 };
+
+                // Reset operations state
+                resetOperationsUIState();
+                updateGraphStats();
+
+                // Clear canvas
+                document.getElementById('main-canvas').innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:14px;">Empty workspace - load a graph to begin</div>';
+                await treeView.refresh(false);
+
+                // Refresh workspace tabs
+                await loadWorkspaces();
+
+                // Clear status
+                document.getElementById('load-status').textContent = '';
+            } else {
+                alert('Failed to create workspace: ' + data.error);
+            }
+        } catch (e) {
+            alert('Error creating workspace: ' + e);
+        }
+    }
+
+    // ── Graph Loading & Operations ────────────────────────────────────────────────────
 
     function resetOperationsUIState() {
         addedFilters = [];
@@ -171,15 +347,22 @@
         const status = document.getElementById('load-status');
         status.textContent = 'Loading…';
         try {
+            // Use current workspace if it exists and is empty, otherwise let backend create new one
+            const body = { plugin_id: plugin, path, directed };
+            if (currentWorkspace && graphStats && graphStats.nodes === 0 && graphStats.edges === 0) {
+                body.workspace_name = currentWorkspace;
+            }
+
             const res = await fetch('/api/load', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ plugin_id: plugin, path, directed })
+                body: JSON.stringify(body)
             });
             const data = await res.json();
             if (data.ok) {
                 graphLoaded = true;
                 graphStats = { nodes: data.nodes, edges: data.edges };
+                currentWorkspace = data.workspace_name;
                 status.textContent = '';
 
                 // Loading new data starts from a clean operation state.
@@ -199,6 +382,9 @@
 
                 await renderVisualizer();
                 await treeView.refresh(graphLoaded);
+
+                // Refresh workspace tabs
+                await loadWorkspaces();
             } else {
                 status.textContent = `✗ ${data.error}`;
                 status.style.color = 'red';
@@ -295,6 +481,9 @@
 
         // Initialize bird view
         birdView = new BirdView('bird-canvas');
+
+        // Load existing workspaces
+        loadWorkspaces();
 
         // Terminal history navigation
         const input = document.getElementById('terminal-input');

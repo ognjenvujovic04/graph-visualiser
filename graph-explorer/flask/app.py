@@ -41,9 +41,21 @@ def api_load():
         if not os.path.isabs(path):
             path = os.path.join(PROJECT_ROOT, path)
         directed  = body.get('directed', 'y')
-        graph = facade.load_graph(plugin_id, path=path, direct=directed)
+        workspace_name = body.get('workspace_name')
+        
+        # Auto-generate workspace name if not provided
+        if not workspace_name:
+            # Generate name like "Workspace 1", "Workspace 2", etc.
+            existing_names = list(facade.list_workspaces().keys())
+            counter = 1
+            while f"Workspace {counter}" in existing_names:
+                counter += 1
+            workspace_name = f"Workspace {counter}"
+        
+        graph = facade.load_graph(plugin_id, workspace_name=workspace_name, path=path, direct=directed)
         return jsonify({
             'ok': True,
+            'workspace_name': workspace_name,
             'nodes': len(graph.nodes),
             'edges': len(graph.edges),
             'directed': graph.directed,
@@ -205,6 +217,156 @@ def api_reset():
             'nodes_count': len(graph.nodes),
             'edges_count': len(graph.edges),
         })
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 400
+
+
+# ------------------------------------------------------------------
+# Workspace management endpoints
+# ------------------------------------------------------------------
+
+@app.route('/api/workspaces', methods=['GET'])
+def api_list_workspaces():
+    """List all workspaces with their metadata."""
+    try:
+        workspaces = facade.list_workspaces()
+        active_workspace_name = facade.get_workspace_manager().active_workspace_name
+        
+        ws_list = []
+        for name, ws in workspaces.items():
+            ws_list.append({
+                'name': name,
+                'plugin': ws.source_plugin.identifier(),
+                'nodes': len(ws.get_active_graph().nodes),
+                'edges': len(ws.get_active_graph().edges),
+                'is_active': name == active_workspace_name,
+                'created_at': ws.created_at.timestamp() if hasattr(ws, 'created_at') else 0
+            })
+        
+        # Sort by creation time (oldest first)
+        ws_list.sort(key=lambda w: w['created_at'])
+        
+        return jsonify({'ok': True, 'workspaces': ws_list})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 400
+
+
+@app.route('/api/workspaces/switch', methods=['POST'])
+def api_switch_workspace():
+    """Switch to a different workspace."""
+    try:
+        body = request.get_json()
+        name = body.get('name')
+        
+        if not name:
+            return jsonify({'ok': False, 'error': 'Workspace name is required'}), 400
+        
+        facade.switch_workspace(name)
+        graph = facade.get_active_graph()
+        
+        return jsonify({
+            'ok': True,
+            'nodes': len(graph.nodes),
+            'edges': len(graph.edges),
+            'directed': graph.directed,
+            'cyclic': graph.cyclic,
+        })
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 400
+
+
+@app.route('/api/workspaces/create', methods=['POST'])
+def api_create_workspace():
+    """Create a new empty workspace."""
+    try:
+        # Auto-generate workspace name
+        existing_names = list(facade.list_workspaces().keys())
+        counter = 1
+        while f"Workspace {counter}" in existing_names:
+            counter += 1
+        workspace_name = f"Workspace {counter}"
+        
+        # Create an empty graph
+        from graph.api.model.graph import Graph
+        empty_graph = Graph(directed=True, cyclic=False)
+        
+        # Get a dummy plugin (we'll use first available datasource plugin as placeholder)
+        datasources = facade.get_datasources()
+        if not datasources:
+            return jsonify({'ok': False, 'error': 'No datasource plugins available'}), 400
+        
+        plugin = datasources[0]
+        
+        # Create workspace with empty graph
+        manager = facade.get_workspace_manager()
+        ws = manager.create_workspace(workspace_name, plugin, empty_graph)
+        manager.switch_workspace(workspace_name)
+        
+        return jsonify({
+            'ok': True,
+            'workspace_name': workspace_name,
+            'nodes': 0,
+            'edges': 0,
+        })
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 400
+
+
+@app.route('/api/workspaces/rename', methods=['POST'])
+def api_rename_workspace():
+    """Rename a workspace."""
+    try:
+        body = request.get_json()
+        old_name = body.get('old_name')
+        new_name = body.get('new_name')
+        
+        if not old_name or not new_name:
+            return jsonify({'ok': False, 'error': 'Both old_name and new_name are required'}), 400
+        
+        manager = facade.get_workspace_manager()
+        
+        if old_name not in manager.workspaces:
+            return jsonify({'ok': False, 'error': f'Workspace "{old_name}" not found'}), 404
+        
+        if new_name in manager.workspaces:
+            return jsonify({'ok': False, 'error': f'Workspace "{new_name}" already exists'}), 400
+        
+        # Rename by moving the workspace
+        ws = manager.workspaces[old_name]
+        ws.name = new_name
+        manager.workspaces[new_name] = ws
+        del manager.workspaces[old_name]
+        
+        if manager.active_workspace_name == old_name:
+            manager.active_workspace_name = new_name
+        
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 400
+
+
+@app.route('/api/workspaces/delete', methods=['POST'])
+def api_delete_workspace():
+    """Delete a workspace."""
+    try:
+        body = request.get_json()
+        name = body.get('name')
+        
+        if not name:
+            return jsonify({'ok': False, 'error': 'Workspace name is required'}), 400
+        
+        facade.delete_workspace(name)
+        
+        # Get the new active workspace (if any)
+        graph = facade.get_active_graph()
+        if graph:
+            return jsonify({
+                'ok': True,
+                'nodes': len(graph.nodes),
+                'edges': len(graph.edges),
+            })
+        else:
+            return jsonify({'ok': True, 'nodes': 0, 'edges': 0})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 400
 

@@ -20,9 +20,8 @@
         <nav class="navbar" aria-label="Main navigation">
             <div class="nav-inner">
                 <a class="brand" href="{{ url_for('home') }}">Graph Explorer</a>
-                <div class="nav-links">
-                    <a class="nav-link active" href="{{ url_for('home') }}">Workspace</a>
-                    <a class="nav-link" href="#main-view">Main View</a>
+                <div class="workspace-tabs" id="workspace-tabs-container">
+                    <!-- Workspace tabs will be populated dynamically -->
                 </div>
             </div>
         </nav>
