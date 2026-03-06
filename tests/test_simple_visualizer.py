@@ -35,7 +35,7 @@ class SimpleVisualizerTestSuite:
         assert "function render()" in html
     
     def test_directed_graph(self):
-        """Test 1: Simple directed graph with 3 nodes."""
+        """Test 1: Simple directed graph with 3 nodes (dark theme)."""
         try:
             graph = Graph(directed=True, cyclic=True)
             
@@ -47,18 +47,18 @@ class SimpleVisualizerTestSuite:
             graph.add_edge(nodes[1], nodes[2], label="works_with")
             graph.add_edge(nodes[2], nodes[0], label="respects")
             
-            html = self.visualizer.visualize(graph, width=800, height=600)
+            html = self.visualizer.visualize(graph, width=800, height=600, theme="dark")
             self.assert_valid_html(html)
             self.save_html("01_directed_graph.html", html)
             
-            print(f"✓ Test 1 PASSED: Directed graph ({len(graph.nodes)} nodes, {len(graph.edges)} edges)")
+            print(f"✓ Test 1 PASSED: Directed graph [DARK] ({len(graph.nodes)} nodes, {len(graph.edges)} edges)")
             self.passed += 1
         except Exception as e:
             print(f"✗ Test 1 FAILED: {e}")
             self.failed += 1
     
     def test_undirected_graph(self):
-        """Test 2: Undirected graph with force layout."""
+        """Test 2: Undirected graph with force layout (light theme)."""
         try:
             graph = Graph(directed=False, cyclic=True)
             
@@ -69,11 +69,11 @@ class SimpleVisualizerTestSuite:
             for i in range(5):
                 graph.add_edge(nodes[i], nodes[(i + 1) % 5])
             
-            html = self.visualizer.visualize(graph, width=800, height=600)
+            html = self.visualizer.visualize(graph, width=800, height=600, theme="light")
             self.assert_valid_html(html)
             self.save_html("02_undirected_graph.html", html)
             
-            print(f"✓ Test 2 PASSED: Undirected graph ({len(graph.nodes)} nodes)")
+            print(f"✓ Test 2 PASSED: Undirected graph [LIGHT] ({len(graph.nodes)} nodes)")
             self.passed += 1
         except Exception as e:
             print(f"✗ Test 2 FAILED: {e}")
@@ -98,11 +98,11 @@ class SimpleVisualizerTestSuite:
             
             graph.add_edge(alice, bob, label="supervises")
             
-            html = self.visualizer.visualize(graph, width=800, height=600)
+            html = self.visualizer.visualize(graph, width=800, height=600, theme="dark")
             self.assert_valid_html(html)
             self.save_html("03_with_attributes.html", html)
             
-            print(f"✓ Test 3 PASSED: Graph with attributes (nodes have properties)")
+            print(f"✓ Test 3 PASSED: Graph with attributes [DARK] (nodes have properties)")
             self.passed += 1
         except Exception as e:
             print(f"✗ Test 3 FAILED: {e}")
@@ -124,12 +124,13 @@ class SimpleVisualizerTestSuite:
                 graph, 
                 width=900, 
                 height=900, 
-                node_radius=25
+                node_radius=25,
+                theme="light"
             )
             self.assert_valid_html(html)
             self.save_html("04_many_nodes_force.html", html)
             
-            print(f"✓ Test 4 PASSED: Force layout with nodes ({len(graph.nodes)} nodes, {len(graph.edges)} edges)")
+            print(f"✓ Test 4 PASSED: Force layout [LIGHT] with nodes ({len(graph.nodes)} nodes, {len(graph.edges)} edges)")
             self.passed += 1
         except Exception as e:
             print(f"✗ Test 4 FAILED: {e}")
@@ -161,43 +162,44 @@ class SimpleVisualizerTestSuite:
                 width=1000,
                 height=1000,
                 node_radius=20,
-                layout="force"
+                layout="force",
+                theme="dark"
             )
             self.assert_valid_html(html)
             self.save_html("05_force_layout_large.html", html)
             
-            print(f"✓ Test 5 PASSED: Force layout ({len(graph.nodes)} nodes, {len(graph.edges)} edges)")
+            print(f"✓ Test 5 PASSED: Force layout [DARK] ({len(graph.nodes)} nodes, {len(graph.edges)} edges)")
             self.passed += 1
         except Exception as e:
             print(f"✗ Test 5 FAILED: {e}")
             self.failed += 1
     
     def test_empty_graph(self):
-        """Test 6: Empty graph."""
+        """Test 6: Empty graph (light theme)."""
         try:
             graph = Graph(directed=True)
             
-            html = self.visualizer.visualize(graph, width=800, height=600)
+            html = self.visualizer.visualize(graph, width=800, height=600, theme="light")
             self.assert_valid_html(html)
             self.save_html("06_empty_graph.html", html)
             
-            print(f"✓ Test 6 PASSED: Empty graph handled correctly")
+            print(f"✓ Test 6 PASSED: Empty graph [LIGHT] handled correctly")
             self.passed += 1
         except Exception as e:
             print(f"✗ Test 6 FAILED: {e}")
             self.failed += 1
     
     def test_single_node(self):
-        """Test 7: Single node graph."""
+        """Test 7: Single node graph (dark theme)."""
         try:
             graph = Graph(directed=True)
             graph.add_node(Node("Isolated"))
             
-            html = self.visualizer.visualize(graph, width=800, height=600)
+            html = self.visualizer.visualize(graph, width=800, height=600, theme="dark")
             self.assert_valid_html(html)
             self.save_html("07_single_node.html", html)
             
-            print(f"✓ Test 7 PASSED: Single node graph")
+            print(f"✓ Test 7 PASSED: Single node graph [DARK]")
             self.passed += 1
         except Exception as e:
             print(f"✗ Test 7 FAILED: {e}")

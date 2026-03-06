@@ -13,7 +13,8 @@ class SimpleVisualizer(VisualizerPlugin):
     The returned HTML includes CSS, D3 script, and serialized graph data.
     """
 
-    _TEMPLATE_PATH = Path(__file__).with_name("templates") / "simple_visualizer.html"
+    _TEMPLATE_DIR = Path(__file__).with_name("templates")
+    _TEMPLATE_PATH = _TEMPLATE_DIR / "simple_visualizer.html"
 
     def name(self) -> str:
         return "Simple Visualizer"
@@ -29,6 +30,7 @@ class SimpleVisualizer(VisualizerPlugin):
             - width: canvas width in pixels (default: 800)
             - height: canvas height in pixels (default: 600)
             - node_radius: radius of each node circle (default: 20)
+            - theme: color theme "dark" or "light" (default: "dark")
         
         Returns:
             HTML string representation of the graph
@@ -40,6 +42,7 @@ class SimpleVisualizer(VisualizerPlugin):
         width = kwargs.get("width", 800)
         height = kwargs.get("height", 600)
         node_radius = kwargs.get("node_radius", 20)
+        theme = kwargs.get("theme", "dark")
 
         # Validate parameters
         if not isinstance(width, int) or width <= 0:
@@ -48,6 +51,8 @@ class SimpleVisualizer(VisualizerPlugin):
             raise ValueError("height must be positive integer")
         if not isinstance(node_radius, int) or node_radius <= 0:
             raise ValueError("node_radius must be positive integer")
+        if theme not in ("dark", "light"):
+            raise ValueError("theme must be 'dark' or 'light'")
 
         nodes_payload = [
             {
@@ -71,7 +76,7 @@ class SimpleVisualizer(VisualizerPlugin):
         nodes_json = self._json_for_script(nodes_payload)
         edges_json = self._json_for_script(edges_payload)
 
-        template = self._load_template()
+        template = self._load_template(theme)
         return (
             template
             .replace("__WIDTH__", str(width))
@@ -81,10 +86,11 @@ class SimpleVisualizer(VisualizerPlugin):
             .replace("__NODE_RADIUS__", str(node_radius))
         ).strip()
 
-    def _load_template(self) -> str:
-        if not self._TEMPLATE_PATH.exists():
-            raise FileNotFoundError(f"Template not found: {self._TEMPLATE_PATH}")
-        return self._TEMPLATE_PATH.read_text(encoding="utf-8")
+    def _load_template(self, theme: str = "dark") -> str:
+        template_path = self._TEMPLATE_DIR / f"simple_visualizer_{theme}.html"
+        if not template_path.exists():
+            raise FileNotFoundError(f"Template not found: {template_path}")
+        return template_path.read_text(encoding="utf-8")
 
     def _safe_value(self, value):
         if isinstance(value, datetime):
