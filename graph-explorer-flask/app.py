@@ -4,7 +4,7 @@ from graph.facade.facade import PlatformFacade
 from graph.cli.parser import CLIParser
 
 # Root of the project (graph-visualiser folder)
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
 app = Flask(__name__)
 
