@@ -350,6 +350,11 @@ main {
     white-space: nowrap;
 }
 
+.tree-label.hovered {
+    color: #ff8c00;
+    font-weight: 600;
+}
+
 .tree-children {
     margin-left: 11px;
     padding-left: 10px;
@@ -546,6 +551,13 @@ main {
 
 .bird-node {
     pointer-events: none;
+}
+
+.bird-node.hovered {
+    fill: #ff8c00 !important;
+    r: 3;
+    stroke: #ff8c00 !important;
+    stroke-width: 1.5;
 }
 
 .viewport-rect {

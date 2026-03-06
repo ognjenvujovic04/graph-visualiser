@@ -298,6 +298,14 @@
                 .attr("stroke", "#ff8c00")
                 .attr("stroke-width", 2.5);
 
+            // Send hover message to parent (for cross-view highlighting)
+            if (window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'node-hover',
+                    nodeId: d.id
+                }, '*');
+            }
+
             var html = '<div class="tooltip-title">Node: ' + d.id + '</div>';
             if (d.data && Object.keys(d.data).length > 0) {
                 for (var key in d.data) {
@@ -317,6 +325,15 @@
             d3.select(this).select(".block-rect")
                 .attr("stroke", "#5b8fa8")
                 .attr("stroke-width", 1.5);
+
+            // Send hover-end message to parent
+            if (window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'node-hover-end',
+                    nodeId: d.id
+                }, '*');
+            }
+
             tooltip.style("display", "none");
         });
 
@@ -441,6 +458,29 @@
                 d.fy = null;
             })
         );
+
+        // Listen for hover messages from parent (cross-view highlighting)
+        window.addEventListener('message', function (event) {
+            if (event.data.type === 'node-hover') {
+                // Highlight the specified node
+                block.each(function (d) {
+                    if (d.id === event.data.nodeId) {
+                        d3.select(this).select(".block-rect")
+                            .attr("stroke", "#ff8c00")
+                            .attr("stroke-width", 2.5);
+                    }
+                });
+            } else if (event.data.type === 'node-hover-end') {
+                // Remove highlight from the specified node
+                block.each(function (d) {
+                    if (d.id === event.data.nodeId) {
+                        d3.select(this).select(".block-rect")
+                            .attr("stroke", "#5b8fa8")
+                            .attr("stroke-width", 1.5);
+                    }
+                });
+            }
+        });
     }
 
     render();

@@ -135,6 +135,7 @@ class TreeView {
 
         const row = document.createElement('div');
         row.className = 'tree-row';
+        row.dataset.nodeId = nodeId; // Store node ID for hover lookup
 
         const toggle = document.createElement('button');
         toggle.className = 'tree-toggle';
@@ -143,6 +144,22 @@ class TreeView {
         const title = document.createElement('span');
         title.className = 'tree-label';
         title.textContent = node ? `${this.nodeLabel(node)} (${node.id})` : String(nodeId);
+        title.dataset.nodeId = nodeId; // Store node ID for hover lookup
+
+        // Add hover event listeners for cross-view highlighting
+        title.addEventListener('mouseenter', () => {
+            window.postMessage({
+                type: 'node-hover',
+                nodeId: nodeId
+            }, '*');
+        });
+
+        title.addEventListener('mouseleave', () => {
+            window.postMessage({
+                type: 'node-hover-end',
+                nodeId: nodeId
+            }, '*');
+        });
 
         row.appendChild(toggle);
         row.appendChild(title);
@@ -263,6 +280,36 @@ class TreeView {
      */
     clearState() {
         this.state.expanded.clear();
+    }
+
+    /**
+     * Highlight a node in the tree view
+     */
+    highlightNode(nodeId) {
+        const canvas = document.getElementById(this.canvasId);
+        if (!canvas) return;
+
+        const labels = canvas.querySelectorAll('.tree-label');
+        labels.forEach(label => {
+            if (label.dataset.nodeId === String(nodeId)) {
+                label.classList.add('hovered');
+            }
+        });
+    }
+
+    /**
+     * Remove highlight from a node in the tree view
+     */
+    unhighlightNode(nodeId) {
+        const canvas = document.getElementById(this.canvasId);
+        if (!canvas) return;
+
+        const labels = canvas.querySelectorAll('.tree-label');
+        labels.forEach(label => {
+            if (label.dataset.nodeId === String(nodeId)) {
+                label.classList.remove('hovered');
+            }
+        });
     }
 }
 

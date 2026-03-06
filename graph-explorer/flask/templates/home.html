@@ -310,6 +310,50 @@
             if (birdView && event.data.positions) {
                 birdView.updateNodePositions(event.data.positions, event.data.links);
             }
+        } else if (event.data && event.data.type === 'node-hover') {
+            // Handle hover events - relay to all views
+            const nodeId = event.data.nodeId;
+
+            // Highlight in tree view
+            if (treeView) {
+                treeView.highlightNode(nodeId);
+            }
+
+            // Highlight in bird view
+            if (birdView) {
+                birdView.highlightNode(nodeId);
+            }
+
+            // Send to visualizer iframe (if message came from tree view)
+            const iframe = document.querySelector('#main-canvas iframe');
+            if (iframe && iframe.contentWindow) {
+                iframe.contentWindow.postMessage({
+                    type: 'node-hover',
+                    nodeId: nodeId
+                }, '*');
+            }
+        } else if (event.data && event.data.type === 'node-hover-end') {
+            // Handle hover end events - relay to all views
+            const nodeId = event.data.nodeId;
+
+            // Unhighlight in tree view
+            if (treeView) {
+                treeView.unhighlightNode(nodeId);
+            }
+
+            // Unhighlight in bird view
+            if (birdView) {
+                birdView.unhighlightNode(nodeId);
+            }
+
+            // Send to visualizer iframe (if message came from tree view)
+            const iframe = document.querySelector('#main-canvas iframe');
+            if (iframe && iframe.contentWindow) {
+                iframe.contentWindow.postMessage({
+                    type: 'node-hover-end',
+                    nodeId: nodeId
+                }, '*');
+            }
         }
     });
 </script>

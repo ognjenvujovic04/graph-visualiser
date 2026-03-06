@@ -169,6 +169,14 @@
                 .style("fill", "#f4b942")
                 .attr("r", 18);
 
+            // Send hover message to parent (for cross-view highlighting)
+            if (window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'node-hover',
+                    nodeId: d.id
+                }, '*');
+            }
+
             var html = '<div class="tooltip-title">Node: ' + d.id + '</div>';
             if (d.data && Object.keys(d.data).length > 0) {
                 for (var key in d.data) {
@@ -188,6 +196,14 @@
             d3.select(this)
                 .style("fill", "#157a6e")
                 .attr("r", 14);
+
+            // Send hover-end message to parent
+            if (window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'node-hover-end',
+                    nodeId: d.id
+                }, '*');
+            }
 
             tooltip.style("display", "none");
         });
@@ -267,6 +283,29 @@
                 d.fy = null;
             })
         );
+
+        // Listen for hover messages from parent (cross-view highlighting)
+        window.addEventListener('message', function(event) {
+            if (event.data.type === 'node-hover') {
+                // Highlight the specified node
+                node.each(function(d) {
+                    if (d.id === event.data.nodeId) {
+                        d3.select(this)
+                            .style("fill", "#f4b942")
+                            .attr("r", 18);
+                    }
+                });
+            } else if (event.data.type === 'node-hover-end') {
+                // Remove highlight from the specified node
+                node.each(function(d) {
+                    if (d.id === event.data.nodeId) {
+                        d3.select(this)
+                            .style("fill", "#157a6e")
+                            .attr("r", 14);
+                    }
+                });
+            }
+        });
     }
 
     render();

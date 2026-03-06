@@ -464,4 +464,35 @@ class BirdView {
             this.render();
         }
     }
+
+    /**
+     * Highlight a node in the bird view
+     */
+    highlightNode(nodeId) {
+        if (!this.graphGroup) return;
+
+        this.graphGroup.selectAll('.bird-node')
+            .each(function(d) {
+                if (d.id === nodeId) {
+                    d3.select(this).classed('hovered', true);
+                }
+            });
+    }
+
+    /**
+     * Remove highlight from a node in the bird view
+     */
+    unhighlightNode(nodeId) {
+        if (!this.graphGroup) return;
+
+        this.graphGroup.selectAll('.bird-node')
+            .each(function(d) {
+                if (d.id === nodeId) {
+                    d3.select(this).classed('hovered', false);
+                }
+            });
+    }
 }
+
+// Export for use in templates
+window.BirdView = BirdView;
