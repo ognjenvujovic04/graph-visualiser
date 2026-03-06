@@ -6,7 +6,7 @@
     const idKeyInput = document.getElementById("id-key");
     const refKeyInput = document.getElementById("ref-key");
     const stringRefsCheckbox = document.getElementById("treat-string-refs");
-    const birdCanvas = document.getElementById("bird-view-canvas");
+    const birdCanvas = document.getElementById("bird-canvas");
 
     const defaultPathsElement = document.getElementById("default-paths-data");
     const defaultPaths = defaultPathsElement

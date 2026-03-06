@@ -68,23 +68,6 @@
     document.addEventListener("DOMContentLoaded", () => {
         wireModeButtons();
 
-        document.getElementById("graph-file")
-            .addEventListener("change", async e => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                const form = new FormData();
-                form.append("file", file);
-                const res  = await fetch(API.load, { method: "POST", body: form });
-                const data = await res.json();
-                if (data.error) { alert(data.error); return; }
-                drawTree(data);
-
-                const activeBtn = document.querySelector('.mode-button.is-active[data-visualizer]');
-                if (activeBtn) {
-                    await applyVisualizerMode(activeBtn.getAttribute("data-visualizer") || "simple");
-                }
-            });
-
         if (typeof INITIAL_GRAPH !== "undefined" && INITIAL_GRAPH?.node_count > 0) {
             drawTree(INITIAL_GRAPH);
         }
@@ -106,7 +89,8 @@
         const children = new Map(data.nodes.map(n => [n.id, []]));
         const inDeg    = new Map(data.nodes.map(n => [n.id, 0]));
 
-        for (const e of data.edges) {
+        const edges = data.edges || data.links || [];
+        for (const e of edges) {
             const s = String(e.source), t = String(e.target);
             if (!nodeMap.has(s) || !nodeMap.has(t) || s === t) continue;
             children.get(s).push(t);
@@ -161,7 +145,20 @@
 
         const W   = container.clientWidth || 400;
         const svg = d3.select(container).append("svg").style("display", "block");
-        const g   = svg.append("g");
+        const zoomLayer = svg.append("g");
+        const g   = zoomLayer.append("g");
+
+        const zoom = d3.zoom()
+            .scaleExtent([0.25, 4])
+            .on("start", () => svg.style("cursor", "grabbing"))
+            .on("zoom", (event) => {
+                zoomLayer.attr("transform", event.transform);
+            })
+            .on("end", () => svg.style("cursor", "grab"));
+
+        svg.call(zoom);
+        svg.on("dblclick.zoom", null);
+        svg.style("cursor", "grab");
 
         const isBlockMode = currentVisualizer === "block";
         const BLOCK_W = 220;
