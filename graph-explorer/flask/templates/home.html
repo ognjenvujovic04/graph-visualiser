@@ -296,23 +296,28 @@
     });
 
     // Listen for messages from the visualizer iframe
+    // All events follow standardized protocol: { type: string, data: object }
     window.addEventListener('message', (event) => {
-        if (event.data && event.data.type === 'visualizer-zoom') {
+        if (!event.data || !event.data.type || !event.data.data) {
+            return;
+        }
+
+        const { type, data } = event.data;
+
+        if (type === 'viewport-change') {
             if (birdView) {
-                birdView.updateMainViewState(
-                    event.data.transform,
-                    event.data.width,
-                    event.data.height
-                );
+                birdView.updateMainViewState(data.transform, data.width, data.height);
             }
-        } else if (event.data && event.data.type === 'visualizer-positions') {
-            // Update bird view with node positions from visualizer
-            if (birdView && event.data.positions) {
-                birdView.updateNodePositions(event.data.positions, event.data.links);
+        } else if (type === 'layout-complete') {
+            if (birdView && data.positions) {
+                birdView.updateNodePositions(data.positions, data.links);
             }
-        } else if (event.data && event.data.type === 'node-hover') {
-            // Handle hover events - relay to all views
-            const nodeId = event.data.nodeId;
+        } else if (type === 'visualizer-positions') {
+            if (birdView && data.positions) {
+                birdView.updateNodePositions(data.positions, data.links);
+            }
+        } else if (type === 'node-hover') {
+            const nodeId = data.nodeId;
 
             // Highlight in tree view
             if (treeView) {
@@ -324,17 +329,13 @@
                 birdView.highlightNode(nodeId);
             }
 
-            // Send to visualizer iframe (if message came from tree view)
+            // Relay to visualizer iframe (if message came from tree view)
             const iframe = document.querySelector('#main-canvas iframe');
             if (iframe && iframe.contentWindow) {
-                iframe.contentWindow.postMessage({
-                    type: 'node-hover',
-                    nodeId: nodeId
-                }, '*');
+                iframe.contentWindow.postMessage({ type, data }, '*');
             }
-        } else if (event.data && event.data.type === 'node-hover-end') {
-            // Handle hover end events - relay to all views
-            const nodeId = event.data.nodeId;
+        } else if (type === 'node-hover-end') {
+            const nodeId = data.nodeId;
 
             // Unhighlight in tree view
             if (treeView) {
@@ -346,13 +347,10 @@
                 birdView.unhighlightNode(nodeId);
             }
 
-            // Send to visualizer iframe (if message came from tree view)
+            // Relay to visualizer iframe (if message came from tree view)
             const iframe = document.querySelector('#main-canvas iframe');
             if (iframe && iframe.contentWindow) {
-                iframe.contentWindow.postMessage({
-                    type: 'node-hover-end',
-                    nodeId: nodeId
-                }, '*');
+                iframe.contentWindow.postMessage({ type, data }, '*');
             }
         }
     });

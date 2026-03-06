@@ -1,11 +1,3 @@
-/**
- * Bird View Module
- * 
- * Renders a zoomed-out view of the entire graph with a viewport rectangle
- * showing the current pan/zoom state of the main view.
- * Implements synchronization with the main visualizer's zoom and pan operations.
- */
-
 class BirdView {
     constructor(canvasId) {
         this.canvasId = canvasId;
@@ -18,9 +10,8 @@ class BirdView {
             height: 600
         };
         this.birdViewScale = 1;
-        this.renderPending = false;
-        this.lastRenderTime = 0;
-        this.minRenderInterval = 50; // Minimum 50ms between renders
+        this.layoutRenderPending = false;
+        this.viewportUpdatePending = false;
         this.init();
     }
 
@@ -79,6 +70,11 @@ class BirdView {
                 const node = nodesById.get(pos.id);
                 node.x = pos.x;
                 node.y = pos.y;
+            } else {
+                // Insert new nodes if they do not exist yet.
+                const node = { id: pos.id, x: pos.x, y: pos.y };
+                this.graphData.nodes.push(node);
+                nodesById.set(pos.id, node);
             }
         });
 
@@ -86,21 +82,13 @@ class BirdView {
             this.graphData.edges = links;
         }
 
-        // Throttle rendering to avoid excessive updates
-        const now = Date.now();
-        if (now - this.lastRenderTime > this.minRenderInterval && !this.renderPending) {
-            this.lastRenderTime = now;
-            this.render();
-            this.updateViewport();
-        } else if (!this.renderPending) {
-            // Schedule a render for later
-            this.renderPending = true;
-            setTimeout(() => {
-                this.renderPending = false;
-                this.lastRenderTime = Date.now();
+        // Schedule one layout render per animation frame for smooth updates.
+        if (!this.layoutRenderPending) {
+            this.layoutRenderPending = true;
+            requestAnimationFrame(() => {
+                this.layoutRenderPending = false;
                 this.render();
-                this.updateViewport();
-            }, this.minRenderInterval);
+            });
         }
     }
 
@@ -158,6 +146,7 @@ class BirdView {
         }
 
         let { nodes, edges } = this.graphData;
+        edges = edges || [];
         const svgWidth = this.svg.node().clientWidth;
         const svgHeight = this.svg.node().clientHeight;
 
@@ -429,19 +418,14 @@ class BirdView {
      */
     updateMainViewState(transform, width, height) {
         this.mainViewState = { transform, width, height };
-        
-        // Throttle viewport updates for zoom/pan
-        const now = Date.now();
-        if (now - this.lastRenderTime > this.minRenderInterval && !this.renderPending) {
-            this.lastRenderTime = now;
-            this.updateViewport();
-        } else if (!this.renderPending) {
-            this.renderPending = true;
-            setTimeout(() => {
-                this.renderPending = false;
-                this.lastRenderTime = Date.now();
+
+        // Schedule one viewport update per frame during pan/zoom.
+        if (!this.viewportUpdatePending) {
+            this.viewportUpdatePending = true;
+            requestAnimationFrame(() => {
+                this.viewportUpdatePending = false;
                 this.updateViewport();
-            }, this.minRenderInterval);
+            });
         }
     }
 

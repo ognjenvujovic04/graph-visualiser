@@ -150,14 +150,14 @@ class TreeView {
         title.addEventListener('mouseenter', () => {
             window.postMessage({
                 type: 'node-hover',
-                nodeId: nodeId
+                data: { nodeId: nodeId }
             }, '*');
         });
 
         title.addEventListener('mouseleave', () => {
             window.postMessage({
                 type: 'node-hover-end',
-                nodeId: nodeId
+                data: { nodeId: nodeId }
             }, '*');
         });
 

@@ -3,6 +3,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 from graph.api.services.plugin import VisualizerPlugin
+from graph.api.events import EventType
 from graph.api.model.graph import Graph
 from graph.api.model.attributes import AttributeValue
 
@@ -111,3 +112,17 @@ class BlockVisualizer(VisualizerPlugin):
 
     def _json_for_script(self, value) -> str:
         return json.dumps(value).replace("</", "<\\/")
+    
+    def supported_events(self) -> list[EventType]:
+        """Block visualizer supports node interaction and viewport events."""
+        return [
+            EventType.NODE_HOVER,
+            EventType.NODE_HOVER_END,
+            EventType.NODE_SELECT,
+            EventType.VIEWPORT_CHANGE,
+            EventType.LAYOUT_COMPLETE,
+        ]
+    
+    def embedding_mode(self) -> str:
+        """Block visualizer should be embedded in an iframe."""
+        return "iframe"

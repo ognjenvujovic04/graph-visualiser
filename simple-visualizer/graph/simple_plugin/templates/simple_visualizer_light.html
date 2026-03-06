@@ -80,6 +80,18 @@
 
 <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <script type="text/javascript">
+    // ════════════════════════════════════════════════════════════════
+    // Standard Event Emission Protocol
+    // ════════════════════════════════════════════════════════════════
+    window.emitVisualizerEvent = function(type, data) {
+        if (window.parent !== window) {
+            window.parent.postMessage({ 
+                type: type, 
+                data: data || {} 
+            }, '*');
+        }
+    };
+    
     function render() {
         var graphNodes = JSON.parse(document.getElementById("nodes-data").textContent);
         var graphLinks = JSON.parse(document.getElementById("edges-data").textContent);
@@ -106,19 +118,16 @@
             .scaleExtent([0.05, 8])
             .on("zoom", function (event) {
                 g.attr("transform", event.transform);
-                // Communicate zoom state to parent page (for bird view)
-                if (window.parent !== window) {
-                    window.parent.postMessage({
-                        type: 'visualizer-zoom',
-                        transform: {
-                            x: event.transform.x,
-                            y: event.transform.y,
-                            k: event.transform.k
-                        },
-                        width: width,
-                        height: height
-                    }, '*');
-                }
+                // Emit viewport change event using standard protocol
+                emitVisualizerEvent('viewport-change', {
+                    transform: {
+                        x: event.transform.x,
+                        y: event.transform.y,
+                        k: event.transform.k
+                    },
+                    width: width,
+                    height: height
+                });
             });
         svg.call(zoomBehavior);
 
@@ -169,13 +178,8 @@
                 .style("fill", "#f4b942")
                 .attr("r", 18);
 
-            // Send hover message to parent (for cross-view highlighting)
-            if (window.parent !== window) {
-                window.parent.postMessage({
-                    type: 'node-hover',
-                    nodeId: d.id
-                }, '*');
-            }
+            // Emit node hover event using standard protocol
+            emitVisualizerEvent('node-hover', { nodeId: d.id });
 
             var html = '<div class="tooltip-title">Node: ' + d.id + '</div>';
             if (d.data && Object.keys(d.data).length > 0) {
@@ -197,13 +201,8 @@
                 .style("fill", "#157a6e")
                 .attr("r", 14);
 
-            // Send hover-end message to parent
-            if (window.parent !== window) {
-                window.parent.postMessage({
-                    type: 'node-hover-end',
-                    nodeId: d.id
-                }, '*');
-            }
+            // Emit node hover end event using standard protocol
+            emitVisualizerEvent('node-hover-end', { nodeId: d.id });
 
             tooltip.style("display", "none");
         });
@@ -232,39 +231,32 @@
 
         var linkDistance = graphNodes.length > 40 ? 55 : (graphNodes.length > 20 ? 65 : 80);
         var chargeStrength = graphNodes.length > 40 ? -120 : (graphNodes.length > 20 ? -160 : -200);
-
         var tickCounter = 0;
+        var positionEmitIntervalTicks = 15;
+
+        function emitCurrentPositions(eventType) {
+            var positions = graphNodes.map(function(n) {
+                return { id: n.id, x: n.x, y: n.y };
+            });
+            emitVisualizerEvent(eventType, {
+                positions: positions,
+                links: graphLinks
+            });
+        }
+
         var simulation = d3.forceSimulation(graphNodes)
             .force("link", d3.forceLink(graphLinks).id(function (d) { return d.id; }).distance(linkDistance))
             .force("charge", d3.forceManyBody().strength(chargeStrength))
             .force("center", d3.forceCenter(width / 2, height / 2))
             .on("tick", function() {
                 ticked();
-                // Send positions to bird view every 15 ticks (reduced overhead)
                 tickCounter++;
-                if (tickCounter % 15 === 0 && window.parent !== window) {
-                    var positions = graphNodes.map(function(n) {
-                        return { id: n.id, x: n.x, y: n.y };
-                    });
-                    window.parent.postMessage({
-                        type: 'visualizer-positions',
-                        positions: positions,
-                        links: graphLinks
-                    }, '*');
+                if (tickCounter % positionEmitIntervalTicks === 0) {
+                    emitCurrentPositions('visualizer-positions');
                 }
             })
             .on("end", function() {
-                // Send final node positions to parent page (for bird view)
-                if (window.parent !== window) {
-                    var positions = graphNodes.map(function(n) {
-                        return { id: n.id, x: n.x, y: n.y };
-                    });
-                    window.parent.postMessage({
-                        type: 'visualizer-positions',
-                        positions: positions,
-                        links: graphLinks
-                    }, '*');
-                }
+                emitCurrentPositions('layout-complete');
             });
 
         node.call(d3.drag()
@@ -284,21 +276,26 @@
             })
         );
 
-        // Listen for hover messages from parent (cross-view highlighting)
+        // Listen for messages from parent (standardized event protocol)
         window.addEventListener('message', function(event) {
-            if (event.data.type === 'node-hover') {
-                // Highlight the specified node
+            if (!event.data || !event.data.type || !event.data.data) {
+                return;
+            }
+
+            var type = event.data.type;
+            var data = event.data.data;
+
+            if (type === 'node-hover') {
                 node.each(function(d) {
-                    if (d.id === event.data.nodeId) {
+                    if (d.id === data.nodeId) {
                         d3.select(this)
                             .style("fill", "#f4b942")
                             .attr("r", 18);
                     }
                 });
-            } else if (event.data.type === 'node-hover-end') {
-                // Remove highlight from the specified node
+            } else if (type === 'node-hover-end') {
                 node.each(function(d) {
-                    if (d.id === event.data.nodeId) {
+                    if (d.id === data.nodeId) {
                         d3.select(this)
                             .style("fill", "#157a6e")
                             .attr("r", 14);
