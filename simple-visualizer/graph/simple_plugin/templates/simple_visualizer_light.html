@@ -106,6 +106,19 @@
             .scaleExtent([0.05, 8])
             .on("zoom", function (event) {
                 g.attr("transform", event.transform);
+                // Communicate zoom state to parent page (for bird view)
+                if (window.parent !== window) {
+                    window.parent.postMessage({
+                        type: 'visualizer-zoom',
+                        transform: {
+                            x: event.transform.x,
+                            y: event.transform.y,
+                            k: event.transform.k
+                        },
+                        width: width,
+                        height: height
+                    }, '*');
+                }
             });
         svg.call(zoomBehavior);
 
@@ -204,11 +217,39 @@
         var linkDistance = graphNodes.length > 40 ? 55 : (graphNodes.length > 20 ? 65 : 80);
         var chargeStrength = graphNodes.length > 40 ? -120 : (graphNodes.length > 20 ? -160 : -200);
 
+        var tickCounter = 0;
         var simulation = d3.forceSimulation(graphNodes)
             .force("link", d3.forceLink(graphLinks).id(function (d) { return d.id; }).distance(linkDistance))
             .force("charge", d3.forceManyBody().strength(chargeStrength))
             .force("center", d3.forceCenter(width / 2, height / 2))
-            .on("tick", ticked);
+            .on("tick", function() {
+                ticked();
+                // Send positions to bird view every 15 ticks (reduced overhead)
+                tickCounter++;
+                if (tickCounter % 15 === 0 && window.parent !== window) {
+                    var positions = graphNodes.map(function(n) {
+                        return { id: n.id, x: n.x, y: n.y };
+                    });
+                    window.parent.postMessage({
+                        type: 'visualizer-positions',
+                        positions: positions,
+                        links: graphLinks
+                    }, '*');
+                }
+            })
+            .on("end", function() {
+                // Send final node positions to parent page (for bird view)
+                if (window.parent !== window) {
+                    var positions = graphNodes.map(function(n) {
+                        return { id: n.id, x: n.x, y: n.y };
+                    });
+                    window.parent.postMessage({
+                        type: 'visualizer-positions',
+                        positions: positions,
+                        links: graphLinks
+                    }, '*');
+                }
+            });
 
         node.call(d3.drag()
             .on("start", function (event, d) {

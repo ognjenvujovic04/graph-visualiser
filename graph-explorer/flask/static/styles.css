@@ -528,3 +528,30 @@ main {
 ::-webkit-scrollbar-track { background: var(--surface); }
 ::-webkit-scrollbar-thumb { background: #424242; border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: #555; }
+
+/* ── Bird View ───────────────────────────────────────────────────── */
+#bird-canvas {
+    position: relative;
+    background: #0a0a0a;
+}
+
+#bird-canvas svg {
+    display: block;
+    cursor: crosshair;
+}
+
+.bird-edge {
+    pointer-events: none;
+}
+
+.bird-node {
+    pointer-events: none;
+}
+
+.viewport-rect {
+    cursor: grab;
+}
+
+.viewport-rect:active {
+    cursor: grabbing;
+}

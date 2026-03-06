@@ -5,7 +5,7 @@
 {% block content %}
 <div style="display:contents">
 
-    {# ── Left panel (tree + bird placeholders) ───────────────────────── #}
+    {# ── Left panel (tree + bird view) ───────────────────────── #}
     <aside class="left-panel">
         <section class="mini-pane">
             <div class="mini-header">Tree View</div>
@@ -13,7 +13,7 @@
         </section>
         <section class="mini-pane">
             <div class="mini-header">Bird View</div>
-            <div class="mini-body" id="bird-canvas">Bird view placeholder</div>
+            <div class="mini-body" id="bird-canvas"></div>
         </section>
     </aside>
 
@@ -92,11 +92,13 @@
 
 {% block extra_scripts %}
 <script src="{{ url_for('static', filename='tree-view.js') }}"></script>
+<script src="{{ url_for('static', filename='bird-view.js') }}"></script>
 <script>
     let activeVisualizer = 'simple';
     let graphLoaded = false;
     let graphStats = null;
     let treeView = null;
+    let birdView = null;
 
     async function loadGraph() {
         const plugin = document.getElementById('plugin-select').value;
@@ -116,6 +118,18 @@
                 graphStats = { nodes: data.nodes, edges: data.edges };
                 status.textContent = `✓ Loaded: ${data.nodes} nodes, ${data.edges} edges`;
                 status.style.color = 'green';
+
+                // Fetch full graph data for bird view
+                try {
+                    const graphRes = await fetch('/api/graph');
+                    const graphData = await graphRes.json();
+                    if (graphData.ok) {
+                        birdView.setGraphData(graphData.nodes, graphData.edges);
+                    }
+                } catch (e) {
+                    console.warn('Failed to load graph data for bird view:', e);
+                }
+
                 await renderVisualizer();
                 await treeView.refresh(graphLoaded);
             } else {
@@ -182,6 +196,9 @@
 
         mountVisualizerHtml(data.html);
         updateGraphStats();
+
+        // After visualizer is mounted, ensure bird view is also updated
+        birdView.updateMainViewState({ x: 0, y: 0, k: 1 }, width, height);
     }
 
     async function setVisualizer(id, btn) {
@@ -206,6 +223,9 @@
         // Initialize tree view
         treeView = new TreeView('tree-canvas');
         treeView.renderFromSnapshot();
+
+        // Initialize bird view
+        birdView = new BirdView('bird-canvas');
 
         // Terminal history navigation
         const input = document.getElementById('terminal-input');
@@ -273,6 +293,24 @@
 
     document.addEventListener('DOMContentLoaded', () => {
         renderTreeViewFromSnapshot();
+    });
+
+    // Listen for messages from the visualizer iframe
+    window.addEventListener('message', (event) => {
+        if (event.data && event.data.type === 'visualizer-zoom') {
+            if (birdView) {
+                birdView.updateMainViewState(
+                    event.data.transform,
+                    event.data.width,
+                    event.data.height
+                );
+            }
+        } else if (event.data && event.data.type === 'visualizer-positions') {
+            // Update bird view with node positions from visualizer
+            if (birdView && event.data.positions) {
+                birdView.updateNodePositions(event.data.positions, event.data.links);
+            }
+        }
     });
 </script>
 {% endblock %}
