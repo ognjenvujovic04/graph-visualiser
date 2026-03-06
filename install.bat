@@ -22,7 +22,9 @@ pip install -e .\api
 pip install -e .\platform
 pip install -e .\json-plugin
 pip install -e .\simple-visualizer
+pip install -e .\block-visualizer
 pip install -e .\csv-plugin
+pip install django
 
 echo.
 echo ================================
@@ -49,9 +51,21 @@ python -m tests.test_simple_visualizer
 
 echo.
 echo ================================
+echo Running Block Visualizer tests...
+echo ================================
+python -m tests.test_block_visualizer
+
+echo.
+echo ================================
 echo Running Workspace Manager tests...
 echo ================================
 python -m tests.test_workspace_manager
+
+echo.
+echo ================================
+echo Running Facade and CLI tests...
+echo ================================
+python -m tests.test_facade_cli
 
 echo.
 echo ================================

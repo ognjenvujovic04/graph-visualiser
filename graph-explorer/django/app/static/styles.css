@@ -1,0 +1,352 @@
+:root {
+    --bg: #f2f5ef;
+    --surface: #ffffff;
+    --ink: #1f2a1f;
+    --muted: #5b655c;
+    --accent: #157a6e;
+    --accent-2: #f4b942;
+    --line: #d9dfd9;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: "Manrope", "Segoe UI", sans-serif;
+    color: var(--ink);
+    background:
+        radial-gradient(circle at 90% 10%, rgba(244, 185, 66, 0.25), transparent 32%),
+        radial-gradient(circle at 10% 90%, rgba(21, 122, 110, 0.16), transparent 30%),
+        var(--bg);
+    min-height: 100vh;
+}
+
+.site-shell {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.navbar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    border-bottom: 1px solid var(--line);
+    backdrop-filter: blur(6px);
+    background: rgba(255, 255, 255, 0.88);
+}
+
+.nav-inner {
+    max-width: 1040px;
+    margin: 0 auto;
+    padding: 0.95rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.brand {
+    font-family: "Syne", "Segoe UI", sans-serif;
+    font-weight: 800;
+    font-size: 1.1rem;
+    color: var(--ink);
+    text-decoration: none;
+    letter-spacing: 0.02em;
+}
+
+.nav-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.nav-link {
+    text-decoration: none;
+    color: var(--muted);
+    font-weight: 600;
+    padding: 0.45rem 0.75rem;
+    border-radius: 999px;
+    transition: all 0.2s ease;
+}
+
+.nav-link:hover,
+.nav-link:focus-visible {
+    color: var(--ink);
+    background: #eaf1ea;
+    outline: none;
+}
+
+.nav-link.active {
+    color: #ffffff;
+    background: var(--accent);
+}
+
+.selection-pill {
+    margin-left: auto;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 0.35rem 0.8rem;
+    font-size: 0.88rem;
+    color: #0f4d46;
+    background: #e3f1ef;
+    font-weight: 700;
+}
+
+main {
+    width: min(1040px, calc(100% - 2rem));
+    margin: 2rem auto;
+    flex: 1;
+    animation: rise-in 0.45s ease;
+}
+
+.card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    box-shadow: 0 14px 35px rgba(23, 35, 23, 0.06);
+}
+
+.page-title {
+    font-family: "Syne", "Segoe UI", sans-serif;
+    font-size: clamp(1.75rem, 4vw, 2.8rem);
+    margin: 0 0 0.75rem;
+    line-height: 1.06;
+}
+
+.page-subtitle {
+    margin: 0;
+    color: var(--muted);
+    max-width: 62ch;
+    line-height: 1.6;
+}
+
+.button {
+    display: inline-block;
+    text-decoration: none;
+    color: #11211f;
+    font-weight: 700;
+    background: var(--accent-2);
+    padding: 0.65rem 1rem;
+    border-radius: 0.7rem;
+    margin-top: 1rem;
+}
+
+.home-kicker {
+    margin: 0 0 0.5rem;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.card-gap {
+    margin-top: 1rem;
+}
+
+.section-title {
+    font-family: "Syne", "Segoe UI", sans-serif;
+    margin-top: 0;
+}
+
+.mode-switch {
+    display: flex;
+    gap: 0.65rem;
+    margin-top: 1.2rem;
+}
+
+.mode-button {
+    border: 1px solid #c3d0c3;
+    background: #ffffff;
+    color: var(--ink);
+    border-radius: 0.7rem;
+    padding: 0.55rem 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.mode-button.is-active {
+    background: var(--accent);
+    color: #ffffff;
+    border-color: var(--accent);
+}
+
+.workspace-grid {
+    display: grid;
+    grid-template-columns: minmax(260px, 0.8fr) minmax(520px, 2.2fr);
+    gap: 1rem;
+    align-items: stretch;
+}
+
+.global-filter-bar {
+    margin-bottom: 1rem;
+}
+
+.filter-row {
+    display: grid;
+    grid-template-columns: minmax(180px, 1.4fr) minmax(120px, 0.8fr) minmax(140px, 1fr);
+    gap: 0.75rem;
+    align-items: end;
+}
+
+.filter-field {
+    min-width: 0;
+}
+
+.filter-field-operator .filter-input {
+    text-transform: uppercase;
+}
+
+.side-views {
+    display: grid;
+    grid-template-rows: 1.3fr 0.85fr;
+    gap: 1rem;
+}
+
+.graph-panel {
+    border: 1px solid var(--line);
+    border-radius: 0.9rem;
+    background: linear-gradient(180deg, #f9fcf9 0%, #f3f8f3 100%);
+    padding: 1rem;
+    min-height: 220px;
+    display: flex;
+    flex-direction: column;
+}
+
+.graph-panel-main {
+    min-height: 620px;
+}
+
+#tree-view {
+    min-height: 320px;
+}
+
+#bird-view {
+    min-height: 210px;
+}
+
+.panel-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    border-bottom: 1px dashed #cdd7cd;
+    margin-bottom: 0.8rem;
+    padding-bottom: 0.5rem;
+}
+
+.panel-header h3 {
+    margin: 0;
+    font-family: "Syne", "Segoe UI", sans-serif;
+    font-size: 1.1rem;
+}
+
+.panel-caption {
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    font-weight: 700;
+}
+
+.filter-label {
+    display: block;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--muted);
+    margin-bottom: 0.35rem;
+}
+
+.filter-input {
+    width: 100%;
+    border: 1px solid #c3d0c3;
+    border-radius: 0.6rem;
+    padding: 0.6rem 0.75rem;
+    background: #ffffff;
+    margin-bottom: 0.85rem;
+    font: inherit;
+}
+
+.filter-input:focus-visible {
+    outline: none;
+    border-color: #7da790;
+    box-shadow: 0 0 0 3px rgba(21, 122, 110, 0.12);
+}
+
+.view-canvas {
+    flex: 1;
+    border: 1px dashed #9db39d;
+    border-radius: 0.75rem;
+    background: #ffffff;
+    color: #5a6a5a;
+    font-weight: 700;
+    display: grid;
+    place-items: center;
+    min-height: 130px;
+}
+
+.view-canvas-main {
+    min-height: 500px;
+}
+
+@keyframes rise-in {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@media (max-width: 640px) {
+    .nav-inner {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .selection-pill {
+        margin-left: 0;
+    }
+
+    main {
+        margin-top: 1.25rem;
+    }
+
+    .workspace-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .filter-row {
+        grid-template-columns: 1fr;
+    }
+
+    .side-views {
+        grid-template-rows: auto;
+    }
+
+    .graph-panel-main {
+        min-height: 400px;
+    }
+
+    .view-canvas-main {
+        min-height: 300px;
+    }
+}
+
+@media (min-width: 641px) and (max-width: 920px) {
+    .workspace-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .side-views {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-rows: auto;
+    }
+}
