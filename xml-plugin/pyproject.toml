@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "graph-xml-plugin"
+version = "0.1"
+description = "XML/HTML datasource plugin (XML/HTML -> Graph)."
+dependencies = [
+  "graph-api==0.1"
+]
+
+[project.entry-points."graph.datasource"]
+xml = "graph.xml_plugin.datasource:XMLDataSource"

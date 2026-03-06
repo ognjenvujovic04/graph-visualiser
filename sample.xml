@@ -1,0 +1,23 @@
+<com.example.Persons>
+    <Person>
+        <name>Alice</name>
+        <address>
+            <street>123 Main St</street>
+            <owner>
+                <!--Use XPath to reference Peter as owner-->
+                <Person reference="../../../../Person[2]"/>
+            </owner>
+        </address>
+    </Person>
+
+    <Person>
+        <name>Peter</name>
+        <address>
+            <street>456 Second St</street>
+            <owner>
+                <!--Use XPath to reference Alice as owner-->
+                <Person reference="../../../../Person[1]"/>
+            </owner>
+        </address>
+    </Person>
+</com.example.Persons>

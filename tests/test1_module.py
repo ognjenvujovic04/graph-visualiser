@@ -11,7 +11,7 @@ from graph.factory.visualizer_factory import VisualizerFactory
 def main():
 
     directed=input("Directed y/n: ")
-    data=input("Data source: 1. JSON or 2. CSV: ")
+    data=input("Data source: 1. JSON, 2. CSV or 3. XML: ")
     registry = PluginRegistry()
     registry.load_all()
     ds_factory = DataSourceFactory(registry)
@@ -19,10 +19,15 @@ def main():
         ds = ds_factory.create_plugin("json")
         #g = ds.load(path="sample.json", direct=directed)  # --> aciklican, neusmeren
         g = ds.load(path="big_250.json",direct=directed) #--> primer ciklicnog i umerenog
-    else:
+    elif data == "2":
         ds = ds_factory.create_plugin("csv")
        # g = ds.load(path="sample.csv", direct=directed)
         g = ds.load(path="big_250.csv", direct=directed)
+    else:
+        ds = ds_factory.create_plugin("xml")
+        #g = ds.load(path="sample.xml", direct=directed)
+        g = ds.load(path="big_250.xml", direct=directed)
+        #g = ds.load(path="big_250_cycle.xml", direct=directed)
 
     print("\nNODES:")
     for n in g.nodes:
