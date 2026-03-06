@@ -5,273 +5,189 @@
 {% block content %}
 <div style="display:contents">
 
-{# ── Sidebar ──────────────────────────────────────────────────────── #}
-<aside class="sidebar">
+    {# ── Sidebar ──────────────────────────────────────────────────────── #}
+    <aside class="sidebar">
 
-    {# Load panel #}
-    <div class="sidebar-section">
-        <div class="sidebar-header">Explorer</div>
-        <div class="load-panel">
-            <div class="load-field">
-                <label class="load-label">Data Source</label>
-                <select id="plugin-select" class="vsc-select">
-                    {% for ds in datasources %}
-                    <option value="{{ ds.id }}">{{ ds.name }}</option>
-                    {% endfor %}
-                </select>
+        {# Load panel #}
+        <div class="sidebar-section">
+            <div class="sidebar-header">Explorer</div>
+            <div class="load-panel">
+                <div class="load-field">
+                    <label class="load-label">Data Source</label>
+                    <select id="plugin-select" class="vsc-select">
+                        {% for ds in datasources %}
+                        <option value="{{ ds.id }}">{{ ds.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="load-field">
+                    <label class="load-label">File Path</label>
+                    <input id="file-path" class="vsc-input" type="text" value="big_250.json"
+                        placeholder="e.g. big_250.json">
+                </div>
+                <div class="load-field">
+                    <label class="load-label">Directed</label>
+                    <select id="directed-select" class="vsc-select">
+                        <option value="y">Yes</option>
+                        <option value="n">No</option>
+                    </select>
+                </div>
+                <button class="vsc-btn" onclick="loadGraph()">▶ Load Graph</button>
+                <p id="load-status" class="load-status"></p>
             </div>
-            <div class="load-field">
-                <label class="load-label">File Path</label>
-                <input id="file-path" class="vsc-input" type="text" value="big_250.json" placeholder="e.g. big_250.json">
+
+            <div class="view-tabs">
+                <button class="view-tab is-active" onclick="setVisualizer('simple', this)">Simple</button>
+                <button class="view-tab" onclick="setVisualizer('block',  this)">Block</button>
             </div>
-            <div class="load-field">
-                <label class="load-label">Directed</label>
-                <select id="directed-select" class="vsc-select">
-                    <option value="y">Yes</option>
-                    <option value="n">No</option>
-                </select>
-            </div>
-            <button class="vsc-btn" onclick="loadGraph()">▶ Load Graph</button>
-            <p id="load-status" class="load-status"></p>
         </div>
 
-        <div class="view-tabs">
-            <button class="view-tab is-active" onclick="setVisualizer('simple', this)">Simple</button>
-            <button class="view-tab"           onclick="setVisualizer('block',  this)">Block</button>
+    </aside>
+
+    {# ── Right panel ──────────────────────────────────────────────────── #}
+    <div class="right-panel">
+
+        {# Graph area #}
+        <div class="graph-area">
+
+            {# Main View #}
+            <div class="main-view-wrap">
+                <div class="panel-header">
+                    <span class="panel-title">Main View</span>
+                    <span class="panel-caption" id="graph-stats">No graph loaded</span>
+                </div>
+                <div id="main-canvas"></div>
+            </div>
+
+            {# Bird View — placeholder for teammate #}
+            <div class="bird-wrap">
+                <div class="bird-header">Bird View</div>
+                <div id="bird-canvas"></div>
+            </div>
+
         </div>
+
+        {# Terminal #}
+        <div class="terminal-wrap">
+            <div class="terminal-tabs">
+                <span class="terminal-tab">TERMINAL</span>
+            </div>
+            <div id="terminal-output"></div>
+            <div class="terminal-input-row">
+                <span class="terminal-prompt">❯</span>
+                <input id="terminal-input" class="terminal-input" type="text"
+                    placeholder="Type a command… (help for list)" onkeydown="if(event.key==='Enter') runCommand()">
+                <button class="terminal-run-btn" onclick="runCommand()">Run</button>
+            </div>
+        </div>
+
     </div>
-
-</aside>
-
-{# ── Right panel ──────────────────────────────────────────────────── #}
-<div class="right-panel">
-
-    {# Graph area #}
-    <div class="graph-area">
-
-        {# Main View #}
-        <div class="main-view-wrap">
-            <div class="panel-header">
-                <span class="panel-title">Main View</span>
-                <span class="panel-caption" id="graph-stats">No graph loaded</span>
-            </div>
-            <div id="main-canvas"></div>
-        </div>
-
-        {# Bird View — placeholder for teammate #}
-        <div class="bird-wrap">
-            <div class="bird-header">Bird View</div>
-            <div id="bird-canvas"></div>
-        </div>
-
-    </div>
-
-    {# Terminal #}
-        <div class="terminal-tabs">
-            <span class="terminal-tab">TERMINAL</span>
-        </div>
-        <div id="terminal-output"></div>
-        <div class="terminal-input-row">
-            <span class="terminal-prompt">❯</span>
-            <input id="terminal-input" class="terminal-input" type="text"
-                   placeholder="Type a command… (help for list)"
-                   onkeydown="if(event.key==='Enter') runCommand()">
-            <button class="terminal-run-btn" onclick="runCommand()">Run</button>
-        </div>
-    </div>
-
-</div>
 </div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
     let activeVisualizer = 'simple';
-    let selectedNodeId   = null;
-
-    // ── Shared selection ────────────────────────────────────────────
-    function selectNode(id) {
-        selectedNodeId = id;
-        d3.selectAll('#main-canvas circle')
-            .attr('fill', d => d.id === id ? '#f4b942' : '#5b8fa8')
-            .attr('r',    d => d.id === id ? 18 : 14);
-        document.getElementById('selection-status').textContent = `Focused Node: ${id}`;
-    }
+    let graphLoaded = false;
+    let graphStats = null;
 
     async function loadGraph() {
-        const plugin   = document.getElementById('plugin-select').value;
-        const path     = document.getElementById('file-path').value.trim();
+        const plugin = document.getElementById('plugin-select').value;
+        const path = document.getElementById('file-path').value.trim();
         const directed = document.getElementById('directed-select').value;
-        const status   = document.getElementById('load-status');
+        const status = document.getElementById('load-status');
         status.textContent = 'Loading…';
         try {
-            const res  = await fetch('/api/load', {
+            const res = await fetch('/api/load', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({plugin_id: plugin, path, directed})
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ plugin_id: plugin, path, directed })
             });
             const data = await res.json();
             if (data.ok) {
+                graphLoaded = true;
+                graphStats = { nodes: data.nodes, edges: data.edges };
                 status.textContent = `✓ Loaded: ${data.nodes} nodes, ${data.edges} edges`;
                 status.style.color = 'green';
-                await drawGraph();
+                await renderVisualizer();
             } else {
                 status.textContent = `✗ ${data.error}`;
                 status.style.color = 'red';
             }
-        } catch(e) {
+        } catch (e) {
             status.textContent = `✗ ${e}`;
             status.style.color = 'red';
         }
     }
 
-    // ── D3 Main View ────────────────────────────────────────────────
-    let simulation   = null;
-    let mainNodes    = [];
-    let mainEdges    = [];
-    let zoomBehavior = null;
-
-    async function drawGraph() {
-        const res  = await fetch('/api/graph');
-        const data = await res.json();
-        if (!data.ok) return;
-
-        mainNodes = data.nodes.map(n => ({...n}));
-        mainEdges = data.edges.map(e => ({...e}));
-
+    function getCanvasSize() {
         const canvas = document.getElementById('main-canvas');
-        const W = canvas.clientWidth  || 900;
-        const H = canvas.clientHeight || 600;
-        canvas.innerHTML = '';
-
-        const svg = d3.select('#main-canvas').append('svg')
-            .attr('width', W).attr('height', H)
-            .style('width', '100%').style('height', '100%');
-
-        const g = svg.append('g');
-
-        zoomBehavior = d3.zoom()
-            .scaleExtent([0.05, 8])
-            .on('zoom', e => {
-                g.attr('transform', e.transform);
-            });
-        svg.call(zoomBehavior);
-
-        svg.append('defs').append('marker')
-            .attr('id', 'arrow').attr('viewBox', '0 -5 10 10')
-            .attr('refX', 22).attr('refY', 0)
-            .attr('markerWidth', 6).attr('markerHeight', 6)
-            .attr('orient', 'auto')
-            .append('path').attr('d', 'M0,-5L10,0L0,5').attr('fill', '#999');
-
-        const link = g.append('g').selectAll('line')
-            .data(mainEdges).enter().append('line')
-            .attr('stroke', '#bbb').attr('stroke-width', 1.5)
-            .attr('marker-end', data.directed ? 'url(#arrow)' : null);
-
-        simulation = d3.forceSimulation(mainNodes)
-            .force('link',   d3.forceLink(mainEdges).id(d => d.id).distance(80))
-            .force('charge', d3.forceManyBody().strength(-200))
-            .force('center', d3.forceCenter(W / 2, H / 2));
-
-        if (activeVisualizer === 'block') {
-            const BWID = 140, BHDR = 32, BROW = 16, BPAD = 6;
-            const bh = d => BHDR + Math.max(1, Object.keys(d.attributes||{}).length) * BROW + BPAD;
-
-            const nodeG = g.append('g').selectAll('.block-node')
-                .data(mainNodes).enter().append('g').attr('class','block-node')
-                .style('cursor','pointer')
-                .call(d3.drag()
-                    .on('start', (e,d) => { if(!e.active) simulation.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; })
-                    .on('drag',  (e,d) => { d.fx=e.x; d.fy=e.y; })
-                    .on('end',   (e,d) => { if(!e.active) simulation.alphaTarget(0); d.fx=null; d.fy=null; })
-                )
-                .on('click', (e,d) => { e.stopPropagation(); selectNode(d.id); });
-
-            nodeG.append('rect')
-                .attr('width', BWID).attr('rx', 6).attr('ry', 6)
-                .attr('fill', '#fff').attr('stroke', '#5b8fa8').attr('stroke-width', 1.5)
-                .attr('height', d => bh(d));
-            nodeG.append('rect')
-                .attr('width', BWID).attr('height', BHDR).attr('rx', 6).attr('ry', 6)
-                .attr('fill', d => d.id === selectedNodeId ? '#f4b942' : '#5b8fa8');
-            nodeG.append('rect')
-                .attr('width', BWID).attr('height', BHDR/2).attr('y', BHDR/2)
-                .attr('fill', d => d.id === selectedNodeId ? '#f4b942' : '#5b8fa8');
-            nodeG.append('text')
-                .text(d => d.id.length > 14 ? d.id.slice(0,13)+'…' : d.id)
-                .attr('x', BWID/2).attr('y', BHDR/2)
-                .attr('text-anchor','middle').attr('dominant-baseline','middle')
-                .attr('font-size', 11).attr('font-weight','bold').attr('fill','#fff')
-                .style('pointer-events','none');
-            nodeG.append('line')
-                .attr('x1',0).attr('x2', BWID).attr('y1', BHDR).attr('y2', BHDR)
-                .attr('stroke','#c0c8d0');
-            nodeG.each(function(d) {
-                const attrs = Object.entries(d.attributes||{});
-                if (!attrs.length) {
-                    d3.select(this).append('text')
-                        .text('(no attributes)')
-                        .attr('x', BWID/2).attr('y', BHDR + BROW/2)
-                        .attr('text-anchor','middle').attr('dominant-baseline','middle')
-                        .attr('font-size',10).attr('fill','#bbb')
-                        .style('pointer-events','none');
-                } else {
-                    attrs.forEach(([k, v], i) => {
-                        const ry = BHDR + BROW * i + BROW/2;
-                        const valStr = String(v).length > 12 ? String(v).slice(0,11)+'…' : String(v);
-                        d3.select(this).append('text').text(k+':')
-                            .attr('x', 5).attr('y', ry).attr('dominant-baseline','middle')
-                            .attr('font-size',10).attr('fill','#555').style('pointer-events','none');
-                        d3.select(this).append('text').text(valStr)
-                            .attr('x', BWID-5).attr('y', ry).attr('text-anchor','end').attr('dominant-baseline','middle')
-                            .attr('font-size',10).attr('fill','#111').style('pointer-events','none');
-                    });
-                }
-            });
-
-            simulation.on('tick', () => {
-                link.attr('x1', d => d.source.x).attr('y1', d => d.source.y)
-                    .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
-                nodeG.attr('transform', d => `translate(${d.x - BWID/2},${d.y - bh(d)/2})`);
-            });
-
-        } else {
-            const node = g.append('g').selectAll('circle')
-                .data(mainNodes).enter().append('circle')
-                .attr('r', 14)
-                .attr('fill', '#5b8fa8').attr('stroke', '#fff').attr('stroke-width', 2)
-                .style('cursor', 'pointer')
-                .call(d3.drag()
-                    .on('start', (e,d) => { if(!e.active) simulation.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; })
-                    .on('drag',  (e,d) => { d.fx=e.x; d.fy=e.y; })
-                    .on('end',   (e,d) => { if(!e.active) simulation.alphaTarget(0); d.fx=null; d.fy=null; })
-                )
-                .on('click', (e,d) => { e.stopPropagation(); selectNode(d.id); });
-
-            const label = g.append('g').selectAll('text')
-                .data(mainNodes).enter().append('text')
-                .text(d => d.id).attr('font-size', 10).attr('fill', '#333')
-                .attr('text-anchor', 'middle').attr('dy', 26)
-                .style('pointer-events', 'none');
-
-            simulation.on('tick', () => {
-                link.attr('x1', d => d.source.x).attr('y1', d => d.source.y)
-                    .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
-                node.attr('cx', d => d.x).attr('cy', d => d.y);
-                label.attr('x', d => d.x).attr('y', d => d.y);
-            });
-        }
-
-        document.getElementById('graph-stats').textContent =
-            `${mainNodes.length} nodes · ${mainEdges.length} edges`;
+        return {
+            width: canvas.clientWidth || 900,
+            height: canvas.clientHeight || 600,
+        };
     }
 
-    function setVisualizer(id, btn) {
+    function mountVisualizerHtml(html) {
+        const canvas = document.getElementById('main-canvas');
+        canvas.innerHTML = '';
+
+        const frame = document.createElement('iframe');
+        frame.title = 'Graph visualization';
+        frame.style.width = '100%';
+        frame.style.height = '100%';
+        frame.style.border = '0';
+        frame.style.display = 'block';
+        frame.srcdoc = html;
+
+        canvas.appendChild(frame);
+    }
+
+    function updateGraphStats() {
+        const statsEl = document.getElementById('graph-stats');
+        if (graphStats) {
+            statsEl.textContent = `${graphStats.nodes} nodes · ${graphStats.edges} edges`;
+            return;
+        }
+        statsEl.textContent = 'No graph loaded';
+    }
+
+    async function renderVisualizer() {
+        if (!graphLoaded) {
+            return;
+        }
+
+        const { width, height } = getCanvasSize();
+        const res = await fetch('/api/visualize', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                visualizer_id: activeVisualizer,
+                width,
+                height,
+            }),
+        });
+        const data = await res.json();
+        if (!data.ok) {
+            throw new Error(data.error || 'Visualizer render failed');
+        }
+
+        mountVisualizerHtml(data.html);
+        updateGraphStats();
+    }
+
+    async function setVisualizer(id, btn) {
         activeVisualizer = id;
         document.querySelectorAll('.view-tab').forEach(b => b.classList.remove('is-active'));
         btn.classList.add('is-active');
-        drawGraph();
+
+        try {
+            await renderVisualizer();
+        } catch (e) {
+            const status = document.getElementById('load-status');
+            status.textContent = `✗ ${e}`;
+            status.style.color = 'red';
+        }
     }
 
     // ── Terminal ────────────────────────────────────────────────────
@@ -299,9 +215,9 @@
         histIdx = -1;
         input.value = '';
         await runCLI(cmd);
-        if (['create','edit','delete','clear','reset','search','filter']
+        if (['create', 'edit', 'delete', 'clear', 'reset', 'search', 'filter']
             .some(k => cmd.startsWith(k))) {
-            await drawGraph();
+            await renderVisualizer();
         }
     }
 
@@ -313,17 +229,23 @@
         output.appendChild(cmdLine);
 
         try {
-            const res  = await fetch('/api/cli', {
+            const res = await fetch('/api/cli', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({command: cmd})
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ command: cmd })
             });
             const data = await res.json();
             const outLine = document.createElement('div');
             outLine.className = 'terminal-line ' + (data.ok ? 'terminal-ok' : 'terminal-err');
             outLine.textContent = data.output;
             output.appendChild(outLine);
-        } catch(e) {
+
+            if (data.stats) {
+                graphStats = data.stats;
+                graphLoaded = true;
+                updateGraphStats();
+            }
+        } catch (e) {
             const errLine = document.createElement('div');
             errLine.className = 'terminal-line terminal-err';
             errLine.textContent = '✗ ' + e;
@@ -331,5 +253,12 @@
         }
         output.scrollTop = output.scrollHeight;
     }
+
+    window.addEventListener('resize', () => {
+        if (!graphLoaded) {
+            return;
+        }
+        renderVisualizer().catch(() => { });
+    });
 </script>
 {% endblock %}
