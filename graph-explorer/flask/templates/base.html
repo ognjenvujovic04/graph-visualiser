@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Graph Explorer{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;700;800&family=Manrope:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <div class="site-shell">
+        <nav class="navbar" aria-label="Main navigation">
+            <div class="nav-inner">
+                <a class="brand" href="{{ url_for('home') }}">Graph Explorer</a>
+                <div class="nav-links">
+                    <a class="nav-link active" href="{{ url_for('home') }}">Workspace</a>
+                    <a class="nav-link" href="#main-view">Main View</a>
+                </div>
+                <div class="selection-pill" id="selection-status">Focused Node: —</div>
+            </div>
+        </nav>
+        <main>
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>
