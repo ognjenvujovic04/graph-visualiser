@@ -63,19 +63,15 @@ class BirdView {
             this.graphData = { nodes: [], edges: links || [] };
         }
 
-        // Update nodes with positions
-        const nodesById = new Map(this.graphData.nodes.map(n => [n.id, n]));
-        positions.forEach(pos => {
-            if (nodesById.has(pos.id)) {
-                const node = nodesById.get(pos.id);
-                node.x = pos.x;
-                node.y = pos.y;
-            } else {
-                // Insert new nodes if they do not exist yet.
-                const node = { id: pos.id, x: pos.x, y: pos.y };
-                this.graphData.nodes.push(node);
-                nodesById.set(pos.id, node);
-            }
+        const previousNodesById = new Map(this.graphData.nodes.map(n => [n.id, n]));
+        this.graphData.nodes = positions.map(pos => {
+            const previous = previousNodesById.get(pos.id) || {};
+            return {
+                ...previous,
+                id: pos.id,
+                x: pos.x,
+                y: pos.y,
+            };
         });
 
         if (links) {
@@ -96,7 +92,10 @@ class BirdView {
      * Set graph data and render bird view
      */
     setGraphData(nodes, edges) {
-        this.graphData = { nodes, edges };
+        this.graphData = {
+            nodes: (nodes || []).map(n => ({ ...n })),
+            edges: (edges || []).map(e => ({ ...e })),
+        };
         this.render();
     }
 

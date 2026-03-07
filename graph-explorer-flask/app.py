@@ -240,6 +240,8 @@ def api_list_workspaces():
                 'plugin': ws.source_plugin.identifier(),
                 'nodes': len(ws.get_active_graph().nodes),
                 'edges': len(ws.get_active_graph().edges),
+                'filters_history': list(getattr(ws, 'filters_history', [])),
+                'search_history': list(getattr(ws, 'search_history', [])),
                 'is_active': name == active_workspace_name,
                 'created_at': ws.created_at.timestamp() if hasattr(ws, 'created_at') else 0
             })
@@ -263,6 +265,8 @@ def api_switch_workspace():
             return jsonify({'ok': False, 'error': 'Workspace name is required'}), 400
         
         facade.switch_workspace(name)
+        manager = facade.get_workspace_manager()
+        ws = manager.workspaces[name]
         graph = facade.get_active_graph()
         
         return jsonify({
@@ -271,6 +275,8 @@ def api_switch_workspace():
             'edges': len(graph.edges),
             'directed': graph.directed,
             'cyclic': graph.cyclic,
+            'filters_history': list(getattr(ws, 'filters_history', [])),
+            'search_history': list(getattr(ws, 'search_history', [])),
         })
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 400
