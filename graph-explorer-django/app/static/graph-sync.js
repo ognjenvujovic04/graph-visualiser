@@ -121,7 +121,7 @@
 
         const nodeMap  = new Map(data.nodes.map(n => [n.id, n]));
         const children = new Map(data.nodes.map(n => [n.id, []]));
-        const inDeg    = new Map(data.nodes.map(n => [n.id, 0]));
+        const inDeg    = new Map(data.nodes.map(n => [n.id, 0])); //broj dolaznih grana (za nalaženje rootova)
 
         const edges = data.edges || data.links || [];
         for (const e of edges) {

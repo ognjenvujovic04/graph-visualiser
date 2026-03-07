@@ -546,14 +546,13 @@ def apply_filter(request):
 
         try:
             facade = _get_facade()
-            facade.reset_graph()
             if field and value:
                 facade.filter(f"{field} {operator} {value}")
                 status = "Filter applied."
             elif field or value:
-                status = "Filter requires both Field and Value. Showing reset result."
+                status = "Filter requires both Field and Value. No changes were applied."
             else:
-                status = "Graph reset."
+                status = "No filter input. Graph left unchanged."
 
             return _render_home_with_state(
                 request,
