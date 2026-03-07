@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Home | Graph Explorer{% endblock %}
+{% block title %}Flask Graph Explorer{% endblock %}
 
 {% block content %}
 <div style="display:contents">
@@ -80,9 +80,13 @@
                 <p id="load-status" class="load-status"></p>
             </div>
 
-            <div class="view-tabs">
-                <button class="view-tab is-active" onclick="setVisualizer('simple', this)">Simple</button>
-                <button class="view-tab" onclick="setVisualizer('block',  this)">Block</button>
+            <div class="load-field">
+                <label class="load-label">Visualizer</label>
+                <select id="visualizer-select" class="vsc-select" onchange="onVisualizerSelectChange(this)">
+                    {% for v in visualizers %}
+                    <option value="{{ v.id }}" {% if loop.first %}selected{% endif %}>{{ v.name }}</option>
+                    {% endfor %}
+                </select>
             </div>
 
             {# Search panel #}
@@ -143,7 +147,7 @@
 <script src="{{ url_for('static', filename='tree-view.js') }}"></script>
 <script src="{{ url_for('static', filename='bird-view.js') }}"></script>
 <script>
-    let activeVisualizer = 'simple';
+    let activeVisualizer = document.getElementById('visualizer-select')?.value ?? 'simple';
     let graphLoaded = false;
     let graphStats = null;
     let treeView = null;
@@ -499,18 +503,13 @@
         birdView.updateMainViewState({ x: 0, y: 0, k: 1 }, width, height);
     }
 
-    async function setVisualizer(id, btn) {
-        activeVisualizer = id;
-        document.querySelectorAll('.view-tab').forEach(b => b.classList.remove('is-active'));
-        btn.classList.add('is-active');
-
-        try {
-            await renderVisualizer();
-        } catch (e) {
+    function onVisualizerSelectChange(selectEl) {
+        activeVisualizer = selectEl.value;
+        renderVisualizer().catch(e => {
             const status = document.getElementById('load-status');
             status.textContent = `✗ ${e}`;
             status.style.color = 'red';
-        }
+        });
     }
 
     // ── Terminal ────────────────────────────────────────────────────
