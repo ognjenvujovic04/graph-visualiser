@@ -4,7 +4,7 @@ from graph.facade.facade import PlatformFacade
 from graph.cli.parser import CLIParser
 
 # Root of the project (graph-visualiser folder)
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
 app = Flask(__name__)
 
@@ -40,7 +40,8 @@ def api_load():
         # resolve relative paths from project root
         if not os.path.isabs(path):
             path = os.path.join(PROJECT_ROOT, path)
-        directed  = body.get('directed', 'y')
+        directed_str = body.get('directed', 'y')
+        directed = directed_str.lower() in ('y', 'yes', 'true', '1')
         workspace_name = body.get('workspace_name')
         
         # Auto-generate workspace name if not provided
@@ -52,7 +53,7 @@ def api_load():
                 counter += 1
             workspace_name = f"Workspace {counter}"
         
-        graph = facade.load_graph(plugin_id, workspace_name=workspace_name, path=path, direct=directed)
+        graph = facade.load_graph(plugin_id, workspace_name=workspace_name, path=path, directed=directed)
         return jsonify({
             'ok': True,
             'workspace_name': workspace_name,
@@ -239,6 +240,8 @@ def api_list_workspaces():
                 'plugin': ws.source_plugin.identifier(),
                 'nodes': len(ws.get_active_graph().nodes),
                 'edges': len(ws.get_active_graph().edges),
+                'filters_history': list(getattr(ws, 'filters_history', [])),
+                'search_history': list(getattr(ws, 'search_history', [])),
                 'is_active': name == active_workspace_name,
                 'created_at': ws.created_at.timestamp() if hasattr(ws, 'created_at') else 0
             })
@@ -262,6 +265,8 @@ def api_switch_workspace():
             return jsonify({'ok': False, 'error': 'Workspace name is required'}), 400
         
         facade.switch_workspace(name)
+        manager = facade.get_workspace_manager()
+        ws = manager.workspaces[name]
         graph = facade.get_active_graph()
         
         return jsonify({
@@ -270,6 +275,8 @@ def api_switch_workspace():
             'edges': len(graph.edges),
             'directed': graph.directed,
             'cyclic': graph.cyclic,
+            'filters_history': list(getattr(ws, 'filters_history', [])),
+            'search_history': list(getattr(ws, 'search_history', [])),
         })
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 400
