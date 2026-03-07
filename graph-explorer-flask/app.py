@@ -4,7 +4,7 @@ from graph.facade.facade import PlatformFacade
 from graph.cli.parser import CLIParser
 
 # Root of the project (graph-visualiser folder)
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
 app = Flask(__name__)
 
@@ -40,7 +40,8 @@ def api_load():
         # resolve relative paths from project root
         if not os.path.isabs(path):
             path = os.path.join(PROJECT_ROOT, path)
-        directed  = body.get('directed', 'y')
+        directed_str = body.get('directed', 'y')
+        directed = directed_str.lower() in ('y', 'yes', 'true', '1')
         workspace_name = body.get('workspace_name')
         
         # Auto-generate workspace name if not provided
@@ -52,7 +53,7 @@ def api_load():
                 counter += 1
             workspace_name = f"Workspace {counter}"
         
-        graph = facade.load_graph(plugin_id, workspace_name=workspace_name, path=path, direct=directed)
+        graph = facade.load_graph(plugin_id, workspace_name=workspace_name, path=path, directed=directed)
         return jsonify({
             'ok': True,
             'workspace_name': workspace_name,

@@ -26,67 +26,6 @@ class TreeView {
     }
 
     /**
-     * Determine root nodes for tree visualization
-     * For directed graphs: nodes with zero in-degree
-     * For undirected graphs: pick first node
-     * Also includes disconnected components as separate roots
-     */
-    pickRoots(nodes, adjacency, directed) {
-        if (!nodes.length) {
-            return [];
-        }
-
-        if (!directed) {
-            return [nodes[0].id];
-        }
-
-        const indegree = Object.create(null);
-        for (const node of nodes) {
-            indegree[node.id] = 0;
-        }
-
-        for (const nodeId of Object.keys(adjacency)) {
-            for (const childId of adjacency[nodeId]) {
-                if (indegree[childId] !== undefined) {
-                    indegree[childId] += 1;
-                }
-            }
-        }
-
-        const roots = nodes
-            .filter(node => indegree[node.id] === 0)
-            .map(node => node.id);
-
-        if (!roots.length) {
-            roots.push(nodes[0].id);
-        }
-
-        // Ensure disconnected components are visible in the tree as extra roots
-        const visited = new Set();
-        const stack = [...roots];
-        while (stack.length) {
-            const current = stack.pop();
-            if (visited.has(current)) {
-                continue;
-            }
-            visited.add(current);
-            for (const child of adjacency[current] || []) {
-                if (!visited.has(child)) {
-                    stack.push(child);
-                }
-            }
-        }
-
-        for (const node of nodes) {
-            if (!visited.has(node.id)) {
-                roots.push(node.id);
-            }
-        }
-
-        return roots;
-    }
-
-    /**
      * Build tree data structure from raw graph
      */
     buildTreeData(rawGraph) {
@@ -94,23 +33,71 @@ class TreeView {
         const edges = rawGraph.edges || [];
         const directed = Boolean(rawGraph.directed);
 
-        const nodesById = new Map(nodes.map(node => [node.id, node]));
-        const adjacency = Object.create(null);
-        for (const node of nodes) {
-            adjacency[node.id] = [];
+        const nodeMap = new Map(nodes.map(node => [node.id, node]));
+        const children = new Map(nodes.map(n => [n.id, []]));
+        const inDeg = new Map(nodes.map(n => [n.id, 0]));
+
+        // Build adjacency and calculate in-degree
+        for (const e of edges) {
+            const s = String(e.source);
+            const t = String(e.target);
+            if (!nodeMap.has(s) || !nodeMap.has(t) || s === t) {
+                continue;
+            }
+            children.get(s).push(t);
+            inDeg.set(t, (inDeg.get(t) || 0) + 1);
         }
 
-        for (const edge of edges) {
-            if (adjacency[edge.source]) {
-                adjacency[edge.source].push(edge.target);
+        // BFS to build tree structure from a starting node
+        const seen = new Set();
+        const treeChildren = new Map(nodes.map(n => [n.id, []]));
+
+        const bfsFrom = (startId) => {
+            if (seen.has(startId)) {
+                return;
             }
-            if (!directed && adjacency[edge.target]) {
-                adjacency[edge.target].push(edge.source);
+            seen.add(startId);
+            const queue = [startId];
+            while (queue.length) {
+                const parentId = queue.shift();
+                for (const childId of children.get(parentId) || []) {
+                    if (seen.has(childId)) {
+                        continue;
+                    }
+                    seen.add(childId);
+                    treeChildren.get(parentId).push(childId);
+                    queue.push(childId);
+                }
+            }
+        };
+
+        // Find roots: nodes with in-degree 0
+        const forestRoots = [];
+        const candidateRoots = nodes
+            .filter(n => (inDeg.get(n.id) || 0) === 0)
+            .map(n => n.id);
+
+        for (const rootId of candidateRoots) {
+            if (!seen.has(rootId)) {
+                forestRoots.push(rootId);
+                bfsFrom(rootId);
             }
         }
 
-        const roots = this.pickRoots(nodes, adjacency, directed);
-        return { nodesById, adjacency, roots, directed };
+        // Add disconnected components as additional roots
+        for (const n of nodes) {
+            if (!seen.has(n.id)) {
+                forestRoots.push(n.id);
+                bfsFrom(n.id);
+            }
+        }
+
+        return {
+            nodeMap,
+            children: treeChildren,
+            roots: forestRoots,
+            directed
+        };
     }
 
     /**
@@ -129,13 +116,13 @@ class TreeView {
      * Create DOM element for a single tree node with expand/collapse functionality
      */
     createTreeNodeElement(nodeId, treeData, ancestry) {
-        const { nodesById, adjacency } = treeData;
-        const node = nodesById.get(nodeId);
-        const children = adjacency[nodeId] || [];
+        const { nodeMap, children } = treeData;
+        const node = nodeMap.get(nodeId);
+        const childIds = children.get(nodeId) || [];
 
         const row = document.createElement('div');
         row.className = 'tree-row';
-        row.dataset.nodeId = nodeId; // Store node ID for hover lookup
+        row.dataset.nodeId = nodeId;
 
         const toggle = document.createElement('button');
         toggle.className = 'tree-toggle';
@@ -144,7 +131,7 @@ class TreeView {
         const title = document.createElement('span');
         title.className = 'tree-label';
         title.textContent = node ? `${this.nodeLabel(node)} (${node.id})` : String(nodeId);
-        title.dataset.nodeId = nodeId; // Store node ID for hover lookup
+        title.dataset.nodeId = nodeId;
 
         // Add hover event listeners for cross-view highlighting
         title.addEventListener('mouseenter', () => {
@@ -168,7 +155,7 @@ class TreeView {
         wrapper.className = 'tree-node';
         wrapper.appendChild(row);
 
-        if (!children.length) {
+        if (!childIds.length) {
             toggle.textContent = '·';
             toggle.disabled = true;
             toggle.classList.add('is-leaf');
@@ -193,7 +180,7 @@ class TreeView {
             const nextAncestry = new Set(ancestry);
             nextAncestry.add(nodeId);
 
-            for (const childId of children) {
+            for (const childId of childIds) {
                 if (nextAncestry.has(childId)) {
                     // Cycle detected
                     const cycle = document.createElement('div');
