@@ -148,7 +148,6 @@
                 }
             }
         }
-
         const forestRootIds = [];
         const candidateRoots = data.nodes
             .filter(n => (inDeg.get(n.id) || 0) === 0)
@@ -160,23 +159,19 @@
                 bfsFrom(rid);
             }
         }
-
         for (const n of data.nodes) {
             if (!seen.has(n.id)) {
                 forestRootIds.push(n.id);
                 bfsFrom(n.id);
             }
         }
-
         function nodeLabel(id) {
             const a = nodeMap.get(id)?.attributes || {};
             return a.name || a.label || a.title || id;
         }
-
         function buildH(id) {
             return { id, name: nodeLabel(id), children: treeKids.get(id).map(buildH) };
         }
-
         const W   = container.clientWidth || 400;
         const svg = d3.select(container).append("svg").style("display", "block");
         const zoomLayer = svg.append("g");
