@@ -149,13 +149,25 @@
     let treeView = null;
     let birdView = null;
     let currentWorkspace = null;
+    let workspaceLoadRequestId = 0;
+
+    function getActiveVisualizerWindow() {
+        const iframe = document.querySelector('#main-canvas iframe');
+        return iframe ? iframe.contentWindow : null;
+    }
 
     // ── Workspace Management ────────────────────────────────────────────────────
 
     async function loadWorkspaces() {
+        const requestId = ++workspaceLoadRequestId;
         try {
             const res = await fetch('/api/workspaces');
             const data = await res.json();
+
+            // Ignore stale async responses that are no longer current.
+            if (requestId !== workspaceLoadRequestId) {
+                return;
+            }
 
             if (data.ok) {
                 renderWorkspaceTabs(data.workspaces);
@@ -166,7 +178,9 @@
                     currentWorkspace = activeWs.name;
                     graphLoaded = true;
                     graphStats = { nodes: activeWs.nodes, edges: activeWs.edges };
+                    syncOperationTagsFromWorkspace(activeWs.filters_history, activeWs.search_history);
                     updateGraphStats();
+                    await refreshBirdViewFromActiveGraph();
                     await renderVisualizer();
                     await treeView.refresh(graphLoaded);
                 }
@@ -197,6 +211,9 @@
     async function switchWorkspace(name) {
         if (name === currentWorkspace) return;
 
+        // Any in-flight workspace list response becomes stale after a switch request.
+        workspaceLoadRequestId++;
+
         try {
             const res = await fetch('/api/workspaces/switch', {
                 method: 'POST',
@@ -210,9 +227,10 @@
                 graphLoaded = true;
                 graphStats = { nodes: data.nodes, edges: data.edges };
 
-                // Update UI state
-                resetOperationsUIState();
+                // Restore operation tags from selected workspace state.
+                syncOperationTagsFromWorkspace(data.filters_history, data.search_history);
                 updateGraphStats();
+                await refreshBirdViewFromActiveGraph();
                 await renderVisualizer();
                 await treeView.refresh(graphLoaded);
                 await loadWorkspaces(); // Refresh tabs
@@ -325,9 +343,27 @@
 
     // ── Graph Loading & Operations ────────────────────────────────────────────────────
 
-    function resetOperationsUIState() {
-        addedFilters = [];
-        addedSearches = [];
+    function parseFilterExpression(filterExpr) {
+        const parsed = String(filterExpr || '').trim().match(/^(.+?)\s*(==|!=|>=|<=|>|<)\s*(.+)$/);
+        if (!parsed) {
+            return null;
+        }
+
+        return {
+            attribute: parsed[1].trim(),
+            operator: parsed[2],
+            value: parsed[3].trim(),
+        };
+    }
+
+    function syncOperationTagsFromWorkspace(filtersHistory = [], searchHistory = []) {
+        addedFilters = (filtersHistory || [])
+            .map(parseFilterExpression)
+            .filter(Boolean);
+        addedSearches = (searchHistory || [])
+            .map(s => String(s || '').trim())
+            .filter(Boolean);
+
         renderFilterTags();
         renderSearchTags();
 
@@ -338,6 +374,23 @@
 
         document.getElementById('filter-status').textContent = '';
         document.getElementById('search-status').textContent = '';
+    }
+
+    async function refreshBirdViewFromActiveGraph() {
+        try {
+            const graphRes = await fetch('/api/graph');
+            const graphData = await graphRes.json();
+            if (graphData.ok && birdView) {
+                birdView.setGraphData(graphData.nodes, graphData.edges);
+                updateAttributeDropdowns();
+            }
+        } catch (e) {
+            console.warn('Failed to load graph data for bird view:', e);
+        }
+    }
+
+    function resetOperationsUIState() {
+        syncOperationTagsFromWorkspace([], []);
     }
 
     async function loadGraph() {
@@ -368,17 +421,7 @@
                 // Loading new data starts from a clean operation state.
                 resetOperationsUIState();
 
-                // Fetch full graph data for bird view
-                try {
-                    const graphRes = await fetch('/api/graph');
-                    const graphData = await graphRes.json();
-                    if (graphData.ok) {
-                        birdView.setGraphData(graphData.nodes, graphData.edges);
-                        updateAttributeDropdowns();
-                    }
-                } catch (e) {
-                    console.warn('Failed to load graph data for bird view:', e);
-                }
+                await refreshBirdViewFromActiveGraph();
 
                 await renderVisualizer();
                 await treeView.refresh(graphLoaded);
@@ -851,6 +894,14 @@
 
         const { type, data } = event.data;
 
+        // These layout/viewport messages must come from the active visualizer iframe.
+        if (type === 'viewport-change' || type === 'layout-complete' || type === 'visualizer-positions') {
+            const activeVisualizerWindow = getActiveVisualizerWindow();
+            if (event.source !== activeVisualizerWindow) {
+                return;
+            }
+        }
+
         if (type === 'viewport-change') {
             if (birdView) {
                 birdView.updateMainViewState(data.transform, data.width, data.height);
@@ -878,7 +929,7 @@
 
             // Relay to visualizer iframe (if message came from tree view)
             const iframe = document.querySelector('#main-canvas iframe');
-            if (iframe && iframe.contentWindow) {
+            if (iframe && iframe.contentWindow && event.source !== iframe.contentWindow) {
                 iframe.contentWindow.postMessage({ type, data }, '*');
             }
         } else if (type === 'node-hover-end') {
@@ -896,7 +947,7 @@
 
             // Relay to visualizer iframe (if message came from tree view)
             const iframe = document.querySelector('#main-canvas iframe');
-            if (iframe && iframe.contentWindow) {
+            if (iframe && iframe.contentWindow && event.source !== iframe.contentWindow) {
                 iframe.contentWindow.postMessage({ type, data }, '*');
             }
         }
